@@ -1,0 +1,28 @@
+GDF'27 V4 — GitHub Pages deployment
+
+This package adds extension-free directory URLs:
+  /admin/                 (instead of /admin.html)
+  /about-us/
+  /applications/
+  /committees/
+  /committee-detail/
+  /faq/
+  /message-from-president/
+  /our-team/
+  /certificate/
+  /verify/
+
+The original .html files are retained as compatibility fallbacks.
+Internal page links in first-party HTML/JS/CSS are updated to the clean URLs.
+
+GitHub Pages:
+1. Upload the CONTENTS of this folder to the repository root (not the outer ZIP folder).
+2. In GitHub: Settings -> Pages -> deploy from your branch, select the branch and /(root).
+3. Wait for the Pages deployment to finish.
+4. Open https://YOUR-USERNAME.github.io/YOUR-REPOSITORY/admin/
+
+Notes:
+- Do not upload the outer "GDF V4" folder as an extra nested directory unless you intend
+  the site URL to include /GDF%20V4/.
+- GitHub Pages serves /admin/ from admin/index.html. No .htaccess is used.
+- Existing .html URLs remain available for backward compatibility.
