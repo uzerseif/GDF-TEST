@@ -1,6 +1,6 @@
 /* =========================================
    GDF'27 — certificate verification pages
-   verify/ (ID form) + certificate/ (participant details).
+   verify.html (ID form) + certificate.html (participant details).
    Built on the site tokens from style.css (--maroon, --gold, --cream); header, footer and
    language switcher come from style.css / i18n.css.
    ========================================= */
@@ -67,7 +67,7 @@
 }
 
 
-/* ---------- verify/ ---------- */
+/* ---------- verify.html ---------- */
 
 .verify-card {
   padding: 38px clamp(22px, 6vw, 48px) 30px;
@@ -253,7 +253,7 @@
 }
 
 
-/* ---------- certificate/ ---------- */
+/* ---------- certificate.html ---------- */
 
 .cert-head {
   margin-bottom: 30px;

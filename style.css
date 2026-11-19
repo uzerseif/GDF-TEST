@@ -1216,39 +1216,3 @@ main:focus { outline: none; }
 /* keep the original spacing now that sponsors is a sibling of the venue section */
 .venue:has(+ section.sponsors) { padding-bottom: 0; }
 .venue + section.sponsors { padding-bottom: calc(clamp(55px, 7vw, 85px) + clamp(40px, 6vw, 64px)); }
-
-
-/* GDF'27 responsive hardening — shared across all public pages */
-html { overflow-x: clip; }
-body { min-width: 320px; }
-img, video, iframe { max-width: 100%; }
-header .brand { min-width: 0; }
-header .brand span { overflow-wrap: anywhere; }
-header .nav-links { gap: clamp(3px, .8vw, 12px); }
-header .nav-links a { font-size: clamp(13px, 1.35vw, 18px); padding: 6px clamp(5px, .8vw, 10px); }
-@media (max-width: 900px) {
-  header { padding: 10px 10px 0; }
-  header nav { gap: 8px; padding: 8px 12px; }
-  header .brand { max-width: calc(100% - 54px); }
-  header .brand img { width: 40px; height: 40px; object-fit: contain; }
-  header .brand span { font-size: clamp(16px, 4vw, 21px); margin-right: 0; }
-  .hero { min-height: min(820px, 100svh); }
-  .hero-inner { width: min(100% - 32px, 760px); }
-}
-@media (max-width: 600px) {
-  header { padding: 8px 8px 0; }
-  header nav { border-radius: 12px; }
-  header .brand img { width: 34px; height: 34px; }
-  header .brand span { font-size: 16px; }
-  .hero { min-height: 720px; min-height: 100svh; }
-  .hero-inner { padding-inline: 0; }
-  .cta-row { flex-wrap: wrap; }
-  .cta-row > * { max-width: 100%; }
-  .content-section, .pres, .venue, .sponsors { padding-inline: 16px; }
-  .tm-row { flex-wrap: wrap; }
-  .tm-card { max-width: 100%; }
-}
-@media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
-}

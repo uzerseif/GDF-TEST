@@ -1,5 +1,73 @@
 # GDF'27 — Content Studio upgrade: changed files & database changes
 
+## Builder Studio Phase 1
+
+The foundation now includes a private multi-project dashboard entry point.
+
+- Added `builder-migration-v1.sql` for project, project settings, project pages and project asset records.
+- Added GDF'27 as the first registered project.
+- Added project create, edit, duplicate, archive/restore and confirmed delete actions.
+- GDF'27 is protected from deletion while existing CMS functionality remains the source of truth.
+- Future projects are clearly marked until their visual editor is implemented.
+
+## Builder Studio Phase 2
+
+- Added `builder-migration-v2.sql` for editor documents, reusable components and revisions.
+- Added a pinned GrapesJS visual editor in the admin dashboard.
+- Added desktop, tablet and mobile canvas devices.
+- Added blocks, layers, styles, traits, undo and redo.
+- Added draft save, revision creation, preview and published-document status.
+- Added reusable component storage.
+- GDF'27 visual documents remain draft data and do not replace existing public pages until a later publishing phase.
+
+## Builder Studio Phase 3
+
+- Added project pages manager with create, edit, delete, publication and ordering controls.
+- Added project header and footer navigation managers.
+- Added project header/footer settings: logo, name visibility and colours.
+- Added project design-token management for colours, fonts, radius and spacing.
+- GDF'27 public content remains served by the existing CMS; Builder management records are isolated.
+
+## Builder Studio Phase 4
+
+- Added project-scoped media upload and asset records.
+- Added hero and background management for Builder pages.
+- Added desktop, tablet and mobile responsive-style records.
+- Added project asset copy and delete controls.
+- GrapesJS canvas devices remain available in the visual editor.
+
+## Builder Studio Phase 5
+
+- Added CodeMirror HTML, CSS and JavaScript editors.
+- Added project custom-code records with legacy/custom-code protection.
+- Added HTML and ZIP import staging.
+- Added ZIP/JSON project export.
+- Added import/export archive history.
+
+## Builder Studio Phase 6
+
+- Added publish and unpublish controls for Builder documents.
+- Added atomic publish snapshots in `builder_project_releases`.
+- Added revision history and confirmed restore.
+- Restores create a backup revision of the current document first.
+- Public GDF'27 content remains independent until a separate deployment integration is approved.
+
+## GDF'27 Integration and Final QA — Phases 7 and 8
+
+- Added a certificate RPC parameter correction in `verify-common.js`.
+- Added protected GDF'27 integration records for CMS, applications, committees, team, FAQ, sponsors, verification and certificates.
+- Added static GDF'27 public-page checks in the admin dashboard.
+- Added persisted Builder test-run history.
+- Live Supabase, browser, public-route and certificate tests remain explicitly pending.
+
+## Integrity hardening
+
+- Finalized GDF'27 `is_system` status on rerun.
+- Added project/page cross-reference triggers for visual documents, revisions, heroes and releases.
+- Fixed CodeMirror initialization timing.
+- Added duplicate and delete controls to the GrapesJS toolbar.
+- Added responsive JSON-to-media-query rendering in the visual canvas.
+
 ## New files
 | File | Purpose |
 |---|---|
@@ -53,3 +121,53 @@ Nothing is dropped or deleted, and existing rows are kept.
 | RLS | `team_groups`: public reads published rows, staff manage. `site_texts` and `page_sections`: public read, staff manage. `site_settings`: public read, **admin**-only write. `admin_users`: each user reads their own row, admins manage. |
 | Storage | `site-media` bucket: public, 5 MB, JPG/PNG/WebP only. Only staff can list, upload, update or delete. |
 | Helpers | `is_i18n_loose()` added. `is_i18n`, `is_staff`, `is_admin` and `set_updated_at` are re-created idempotently. |
+
+## UCMS transformation — 2026-11-19
+
+Full audit + refactor + security hardening + new administrative surfaces. Details in REPORT.md.
+
+### Architecture
+- Split the 2,103-line `admin-pages.js` monolith into `admin/pages-shared.js`,
+  `pages-dashboard.js`, `pages-website.js`, `pages-content.js`, `pages-builder.js`,
+  `pages-system.js`, `ucms-core.js` and `boot.js`; `admin.js` keeps the proven core
+  (guarded Supabase client, save-state save bars, new nav groups, breadcrumbs,
+  collapsible + searchable sidebar categories).
+- Removed the dead `package-lock.json`.
+
+### Database (cms-migration-v5.sql, additive/idempotent)
+- Roles: `publisher` and `super_admin` added next to `admin`/`editor`; `can_publish()`
+  guards `publish_builder_document` (editors can no longer publish — server-side).
+- New: `audit_logs` (append-only RLS) + `log_admin_action`, `cms_notifications` +
+  `notify_staff`, `cms_backups` + `create_cms_backup`, `builder_page_templates`
+  (+ 6 seeded GDF-branded templates).
+- Storage allowlist re-asserted to JPEG/PNG/WebP (an old upgrade script had allowed SVG).
+
+### Security
+- Visual-editor previews moved from same-origin `blob:` URLs to fully sandboxed
+  iframes (`sandbox=""`, srcdoc, no scripts) — documents can no longer reach admin
+  session storage. Audit: fixed a real credential-exposure hole.
+- `@supabase/supabase-js` pinned to 2.49.4 across all 22 HTML pages (was floating `@2`).
+- Admin boot shows a clear dependency-error screen if a CDN library fails.
+- Every content write, publish, media operation, role change, backup and restore is
+  written to the append-only audit log.
+
+### New UCMS surfaces
+Dashboard (real stats/activity/health/projects), Website Health page, unified Pages
+manager (content + visual editor + publish + revisions per page), SEO manager (per-page
+metadata, live search-preview, applied to public pages by cms-public.js), Global Website
+Settings editor, Translations coverage page, Reusable Components manager, Page Templates
+manager (apply always creates a new page), Users & Roles, Permissions matrix, Audit Logs
+(filters + pagination), Media Library (per-file usage from 15 reference sources, Unknown
+state on failed checks, rename/replace with reference rewrite, deletion blocked while
+referenced), Backups & Restore (safety checkpoint before restore), Notifications (bell +
+page), global search (Ctrl/⌘+K).
+
+### Editing workflow
+- Visual editor: autosave (4 s debounce, draft-only), explicit revision snapshots,
+  publish creates release via RPC, GDF-branded blocks, component save via modal,
+  target-page deep links from the Pages manager.
+- Save bars show Saving… / Saved HH:MM / Save failed / Offline states everywhere.
+
+### Docs
+New README.md, ARCHITECTURE.md, DATABASE.md, UCMS-GUIDE.md, BUILDER-GUIDE.md,
+SECURITY.md, DEPLOYMENT.md, MIGRATIONS.md, REPORT.md; TESTING.md and CMS-SETUP.md updated.

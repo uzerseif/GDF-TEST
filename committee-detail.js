@@ -1,4 +1,4 @@
-/* Show the committee selected in the URL (?id=...). All content lives in committee-detail/. */
+/* Show the committee selected in the URL (?id=...). All content lives in committee-detail.html. */
 (function () {
   var cards = document.querySelectorAll(".committee-detail[data-committee]");
   if (!cards.length) return;

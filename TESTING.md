@@ -1,4 +1,165 @@
-# GDF'27 Content Studio — test results
+# GDF'27 Content Studio / UCMS — test results
+
+## UCMS transformation — 2026-11-19
+
+Scope of this round: architecture refactor, security hardening, UCMS surfaces
+(dashboard, health, audit, media usage, users, backups, notifications, search,
+SEO, templates, components), migration v5. Results below are only what was
+actually executed in this session — nothing is claimed without evidence.
+
+### Static checks (executed, all passing)
+
+| Check | Method | Result |
+|---|---|---|
+| JavaScript syntax — every project .js file | `node --check` (per file) | PASS (vendor minified files excluded from check but shipped pinned) |
+| i18n key integrity | `scripts/ucms-qa.js`: every `t("…")` / `data-t` key used by the admin modules resolved against `ADMIN_I18N` (en/ar/tr) | PASS — 484 keys in EN; all 193 new `ucms.*` keys present in AR and TR |
+| Dynamic key prefixes | same script: every `t("prefix." + x)` has matching keys | PASS |
+| Page-id integrity | every `A.go("…")` target is a registered page; no duplicate registrations | PASS — 31 pages registered |
+| CDN dependency pinning | scan of all 22 HTML files | PASS — `@supabase/supabase-js@2.49.4`, `grapesjs@0.21.13`, `codemirror@5.65.16`, `jszip@3.10.1` |
+| Local asset references | base-href-aware scan of every script/link href (HTML comments excluded) | PASS |
+| Secret scan | block/line-comment-stripped source scan for service_role/secret assignments | PASS |
+| v5 SQL sanity | object names, policy/function grants reviewed line-by-line against RLS matrix | PASS (static) |
+
+### Browser smoke tests (executed with headless Chromium via agent-browser)
+
+Server: local static server on 127.0.0.1:8931 serving the project root.
+
+| Test | Result |
+|---|---|
+| `admin.html` fresh load — no console errors, no page errors, login view rendered, dependency guard intact | PASS |
+| `admin/index.html` fresh load (base href entry point) — 0 errors | PASS |
+| Public routes fresh load — `index.html`, `about/`, `applications/`, `committees/`, `faq/`, `team/`, `president/`, `verify/`, `admin/` — 0 console errors, 0 page errors each | PASS |
+| Failed login against the live Supabase auth service — proper localised error message, stays on login view | PASS (observed with wrong credentials against the real project; no data modified) |
+| Full app-shell walkthrough with a mocked REST layer | BLOCKED — injected route mocks cannot supply the CORS headers the browser requires; a faithful mock needs a local Supabase stack (Playwright, as the 84/84 round used). Not executed here. |
+
+### Not executed in this round (same limitation as before)
+
+- CRUD and RLS behaviour against a live project (pages, media, users, roles,
+  publish/unpublish, revisions/restore, backups/restore) — requires a live
+  Supabase admin account or a local Supabase stack.
+- Migration v5 has not been applied to the live project (it is additive and
+  idempotent; apply per MIGRATIONS.md, take a backup first).
+- Firefox / Safari and real mobile devices.
+- The visual editor's canvas behaviour in a real GrapesJS session
+  (GrapesJS loaded from CDN in the smoke test; interaction testing needs the
+  authenticated app).
+
+### Honesty notes
+
+- The dashboard's "Media files" statistic counts registered Builder assets
+  (`builder_project_assets`) for speed; the full storage walk with exact
+  counts lives in the Media Library page.
+- The SEO fields are applied to public pages by JavaScript after load.
+  Crawlers that execute JavaScript see them; static crawlers see the
+  original HTML metadata. This is stated in-app and in DEPLOYMENT.md.
+- Publishing to the database is not a public deployment — three separate
+  statuses are shown, and DEPLOYMENT.md §5 documents the future integration.
+
+---
+
+# Historical results (previous rounds)
+
+## Phase 1 — not yet runtime-tested
+
+The Builder migration and project dashboard were added after the existing 84/84 test report.
+They require a live or local Supabase instance with `cms-migration-v4.sql` and
+`builder-migration-v1.sql` applied. The migration and project CRUD were not counted in the
+existing 84/84 result until runtime testing is completed.
+
+## Phase 2 — not yet runtime-tested
+
+The GrapesJS editor and Builder migration V2 require browser and Supabase testing.
+No visual-editor claim is approved until a live Supabase instance, CDN-loaded GrapesJS
+canvas, draft save/reload, revisions, components, responsive devices and GDF'27
+non-regression behavior have been tested.
+
+## Phase 3 — not yet runtime-tested
+
+The pages, navigation, header/footer and design-token management require live Supabase
+testing. Existing GDF'27 CMS behavior must be checked to confirm Builder settings do not
+overwrite or publish directly to the public website.
+
+## Phase 4 — not yet runtime-tested
+
+Project media upload, asset deletion, hero/background records and JSON responsive
+style records require live Supabase and browser testing. The existing global
+`site-media` uploader and public GDF'27 assets must remain regression-tested.
+
+## Phase 5 — not yet runtime-tested
+
+CodeMirror, JSZip, HTML import, ZIP export and archive-history operations require live
+browser/CDN and Supabase testing. Imports must not be considered published or applied
+to GDF'27 public files until a later publishing phase.
+
+## Phase 6 — not yet runtime-tested
+
+Publish, unpublish, release snapshots, revision restore and backup-before-restore require
+live Supabase RPC and RLS testing. Public GDF'27 deployment must remain disabled until
+the separate integration and publishing phase is implemented.
+
+## Phase 7 and 8 — not yet runtime-tested
+
+GDF'27 integration records and static QA history are implemented, but live verification is
+not complete. The following remain pending:
+
+- Apply migrations V1 through V8 and verify reruns.
+- Run project CRUD, RLS and GDF'27 protection tests.
+- Load GrapesJS, CodeMirror and JSZip in Chromium.
+- Test draft save/reload, revisions, restore, publish and unpublish.
+- Test HTML/ZIP import and ZIP/JSON export.
+- Test public EN/AR/TR pages and clean routes.
+- Test committee, team, sponsor, FAQ and application loading.
+- Test the `verify_certificate(p_certificate_id)` RPC parameter and certificate PDF flow.
+
+## Integrity follow-up
+
+- Applied static fixes for GDF'27 system status, cross-project references, CodeMirror initialization,
+  GrapesJS duplicate/delete controls and responsive CSS generation.
+- These fixes require migration rerun and browser persistence testing before approval.
+
+## Chromium Builder verification — mock Supabase — 2026-11-19
+
+- Admin login shell loaded and accepted a mocked authorized session.
+- Visual editor loaded GrapesJS with blocks, layers, styles and traits.
+- Text block drag/drop, duplicate control and delete control were visible and executable.
+- Website management, Code and archives, and Advanced editing pages loaded without
+  page exceptions or HTTP 400/404 responses.
+- Admin navigation remained under `/admin/#<section>`.
+- Legacy GDF'27 image URLs in the visual canvas were corrected from `/admin/images/*`
+  to project-root URLs.
+- These checks used a mock database and do not prove live Supabase RLS or persistence.
+
+## Final available validation — 2026-11-18
+
+### Passed
+
+- JavaScript syntax: all `*.js` files in the workspace passed `node --check`.
+- Chromium smoke test: 11 public/admin routes returned HTTP < 400 through the local static server.
+- Chromium console: no JavaScript console `error` messages were emitted during the route smoke test.
+- Local key assets: `logo.webp`, `style.css`, `applications.css`, `admin.css`, and the four applications card images returned HTTP 200.
+- Certificate RPC parameter static check: `verify-common.js` now calls
+  `verify_certificate` with `p_certificate_id`, matching `supabase-migration.sql`.
+- Secret-key static scan: no `service_role` or secret key assignment was found in frontend files.
+
+### Browser/network failures observed
+
+- Live Supabase REST requests failed or were unavailable from the local test environment.
+- The Google Maps embed request failed or was unavailable.
+- Google Fonts requests failed or were unavailable.
+- CDN-loaded GrapesJS, CodeMirror and JSZip could not be proven functional beyond static loading.
+
+### Not executed
+
+- Login and logout against the live Supabase account.
+- Project creation, editing, duplication, archive, restore and deletion against Supabase.
+- Direct RLS tests for staff, editor, anonymous and non-staff users.
+- GrapesJS element add/edit/delete/reorder/duplicate/style/responsive/persistence tests.
+- Website page, navigation, header, footer, typography and media CRUD tests.
+- ZIP extraction and exported-page/CSS/JavaScript/internal-link verification.
+- Live committee, team, sponsor, FAQ and application data tests.
+- Live certificate verification and certificate PDF tests.
+- Firefox or Safari testing.
+- Mobile-device browser testing.
 
 I ran the tests against a **local Supabase stack** (Supabase CLI 3.1.0 in Docker), set up exactly like your project:
 `cms-schema.sql` → `cms-admin-upgrade.sql` → `seed-gdf.sql` → `cms-migration-v4.sql` (run twice to prove it's safe to repeat).

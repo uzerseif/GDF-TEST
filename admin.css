@@ -191,6 +191,52 @@ select option{background:var(--bg2)}
 .check i{width:10px;height:10px;border-radius:50%;background:var(--ok);display:inline-block}
 .check.bad i{background:var(--danger)}
 
+/* Builder projects */
+.project-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.project-card{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:rgba(6,15,34,.48);min-width:0}
+.project-card:hover{border-color:var(--line2)}
+.project-cover{height:150px;position:relative;display:grid;place-items:center;background:linear-gradient(135deg,var(--surface2),var(--bg2))}
+.project-cover img{width:100%;height:100%;object-fit:cover}
+.project-cover .badge{position:absolute;inset-inline-end:10px;top:10px;background:rgba(6,15,34,.82);margin:0}
+.project-body{padding:14px}
+.project-body h3{margin:0 0 4px;font-family:var(--font-h);color:var(--cream)}
+.project-body p{min-height:42px;margin:0 0 10px}
+.project-meta{font-size:12px;color:var(--muted);margin-bottom:12px}
+.project-actions,.project-more{display:flex;gap:8px;flex-wrap:wrap}
+.project-actions{padding-bottom:10px;border-bottom:1px solid var(--line)}
+.project-more{padding-top:10px}
+
+/* GrapesJS visual editor */
+.gjs-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.gjs-toolbar label{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.gjs-toolbar select{width:auto;min-width:150px}
+.gjs-layout{display:grid;grid-template-columns:220px minmax(360px,1fr) 250px;min-height:calc(100vh - 210px);border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#111820}
+.gjs-side{min-width:0;background:#0b1425;border-inline:1px solid var(--line);overflow:auto}
+.gjs-left{border-inline-start:0}
+.gjs-right{border-inline-end:0}
+.gjs-side-title{display:block;padding:10px 12px;color:var(--gold2);border-bottom:1px solid var(--line)}
+.gjs-tabbar{display:flex;gap:12px;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--gold2)}
+.gjs-panel-section{max-height:310px;overflow:auto;border-bottom:1px solid var(--line)}
+.gjs-panel-scroll{min-height:120px}
+.gjs-canvas{min-width:0;overflow:hidden;background:#7d8794}
+.gjs-canvas .gjs-host{height:calc(100vh - 210px)!important}
+.gjs-canvas .gjs-cv-canvas{width:100%!important}
+.gjs-one-bg{background:#0e2041}
+.gjs-sm-sector{border-bottom:1px solid var(--line)}
+.gjs-block{border:1px solid var(--line)!important;background:#132a52!important;color:var(--text)!important}
+.gjs-layer{color:var(--text)}
+
+/* Code editor and archives */
+.code-editors{grid-template-columns:1fr}
+.code-editors .CodeMirror{height:260px;border:1px solid var(--line);border-radius:10px;background:var(--bg2);color:var(--text)}
+.code-editors .CodeMirror-gutters{background:var(--surface);border-inline-end:1px solid var(--line)}
+.code-editors .CodeMirror-cursor{border-left-color:var(--gold)}
+.code-editors .CodeMirror-selected{background:rgba(217,180,108,.18)}
+
+@media (max-width:1200px){.gjs-layout{grid-template-columns:180px minmax(320px,1fr) 210px}}
+@media (max-width:900px){.gjs-layout{grid-template-columns:150px minmax(280px,1fr)}.gjs-right{display:none}.gjs-canvas .gjs-host{height:600px!important}}
+@media (max-width:640px){.gjs-layout{grid-template-columns:1fr}.gjs-left{display:none}.gjs-canvas .gjs-host{height:520px!important}.gjs-toolbar label{width:100%}.gjs-toolbar select{flex:1}}
+
 /* team */
 .team-layout{display:grid;grid-template-columns:280px 1fr;gap:18px;align-items:start}
 .group-card{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px;background:rgba(6,15,34,.35)}
@@ -261,28 +307,4 @@ select option{background:var(--bg2)}
   .li-row .li-tools{flex-direction:row;grid-column:1/-1;order:3}
   .tabs{overflow-x:auto;flex-wrap:nowrap}
   .top-actions{width:100%}
-}
-
-
-/* Admin responsive hardening */
-@media (max-width: 900px) {
-  .app { min-width: 320px; }
-  .topbar { gap: 8px; }
-  .crumbs { flex: 1 1 180px; }
-  .top-actions { flex: 1 1 100%; }
-  .preview { width: 100vw; }
-}
-@media (max-width: 640px) {
-  .topbar { padding: 10px 12px; }
-  .crumbs h1 { font-size: 18px; }
-  .top-actions { gap: 6px; }
-  .top-actions .btn { min-height: 38px; padding: 8px 10px; }
-  .view { padding: 14px 12px 90px; }
-  .card { padding: 13px; }
-  .modal-backdrop { padding: 8px; }
-  .modal { max-height: calc(100dvh - 16px); border-radius: 14px; }
-  .modal-head, .modal-body, .modal-foot { padding-inline: 14px; }
-  .media-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .quick { grid-template-columns: 1fr; }
-  .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
 }

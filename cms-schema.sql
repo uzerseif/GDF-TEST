@@ -133,7 +133,7 @@ create policy "admins write settings" on public.site_settings
 -- 4. CONTENT TABLES
 -- ---------------------------------------------------------------------
 
--- 4.1 Committees  (committees.html cards + committee-detail.html?id=slug)
+-- 4.1 Committees (/committees/ cards + /committee/?id=slug)
 create table if not exists public.committees (
   id           uuid primary key default gen_random_uuid(),
   slug         text not null unique check (slug ~ '^[a-z0-9-]+$'),   -- e.g. unga, security-council

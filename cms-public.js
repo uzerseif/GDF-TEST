@@ -11,17 +11,19 @@
 (function () {
   "use strict";
   var cfg = window.GDF_SUPABASE || {}, BOOT = window.GDF_CMS_BOOT || {};
-  var pathParts = location.pathname.split("/").filter(Boolean);
-  var pageSlug = pathParts.length ? pathParts[pathParts.length - 1] : "index";
-  if (pageSlug.toLowerCase() === "index.html") pageSlug = pathParts.length > 1 ? pathParts[pathParts.length - 2] : "index";
-  pageSlug = pageSlug.replace(/\.html$/i, "").toLowerCase();
+  var pathname = location.pathname;
+  var file = (pathname.replace(/\/+$/, "").split("/").pop() || "index.html").toLowerCase();
+  var isDirectoryUrl = /\/$/.test(pathname);
   var PAGE = {
-    "": "home", "index": "home", "home": "home",
-    "about-us": "about", "applications": "applications",
-    "message-from-president": "president", "our-team": "team",
-    "committees": "committees", "committee-detail": "committees",
-    "faq": "faq", "verify": "verify", "certificate": "certificate"
-  }[pageSlug] || "other";
+    "index.html": "home", "": "home", "about": "about", "about-us.html": "about",
+    "applications": "applications", "applications.html": "applications",
+    "president": "president", "message-from-president.html": "president",
+    "team": "team", "our-team.html": "team",
+    "committees": "committees", "committees.html": "committees",
+    "committee": "committees", "committee-detail.html": "committees",
+    "faq": "faq", "faq.html": "faq", "verify": "verify", "verify.html": "verify",
+    "certificate": "certificate", "certificate.html": "certificate"
+  }[isDirectoryUrl && !/^(about|applications|president|team|committees|committee|faq|verify|certificate)$/i.test(file) ? "index.html" : file] || "other";
   var PREVIEW = /[?&]cms-preview=1/.test(location.search) && window.parent !== window;
 
   var db = null;
@@ -39,7 +41,17 @@
     u = String(u || "").trim();
     if (!u) return "";
     if (/^(https?:|mailto:|tel:|#)/i.test(u)) return u;
-    if (/^[a-z0-9._~\/-]+(\.[a-z0-9]+)?([?#][^\s"'<>]*)?$/i.test(u) && !/^javascript/i.test(u)) return u;
+    if (/^[a-z0-9._~\/-]+(\.[a-z0-9]+)?([?#][^\s"'<>]*)?$/i.test(u) && !/^javascript/i.test(u)) {
+      var path = u.split(/[?#]/)[0], suffix = u.slice(path.length);
+      var cleanRoutes = {
+        "index.html": "./", "about-us.html": "about/", "applications.html": "applications/",
+        "committees.html": "committees/", "committee-detail.html": "committee/",
+        "message-from-president.html": "president/", "our-team.html": "team/",
+        "faq.html": "faq/", "verify.html": "verify/", "certificate.html": "certificate/",
+        "admin.html": "admin/"
+      };
+      return (cleanRoutes[path.toLowerCase()] || path) + suffix;
+    }
     return "";
   };
   var $$ = function (sel, root) { return [].slice.call((root || document).querySelectorAll(sel)); };
@@ -86,20 +98,6 @@
     var s = settingsOf("global", "header");
     setImg("header-logo", s.logo_url);
     $$('header .brand span[data-i18n="brand.name"]').forEach(function (el) { show(el, s.show_name !== false); });
-    /* Header appearance is configured once here and shared by every public page. */
-    var header = document.querySelector("header"), navRoot = header && header.querySelector("nav");
-    if (header && navRoot) {
-      var color = function (v, fallback) { return BOOT.safeColor && BOOT.safeColor(v) ? v : fallback; };
-      navRoot.style.backgroundColor = color(s.header_bg, "");
-      navRoot.style.borderRadius = /^\\d{1,2}px$/.test(s.header_radius || "") ? s.header_radius : "";
-      navRoot.style.maxWidth = /^\\d{3,4}px$/.test(s.header_width || "") ? s.header_width : "";
-      var navCss = document.getElementById("gdf-cms-header-style");
-      if (!navCss) { navCss = document.createElement("style"); navCss.id = "gdf-cms-header-style"; document.head.appendChild(navCss); }
-      var textColor = color(s.header_text, ""), activeBg = color(s.header_active_bg, ""), activeText = color(s.header_active_text, "");
-      navCss.textContent = (textColor ? "header .nav-links a,header .mobile-menu a{color:" + textColor + "!important}" : "") +
-        (activeBg ? "header .nav-links a.active,header .mobile-menu a.active{background:" + activeBg + "!important}" : "") +
-        (activeText ? "header .nav-links a.active,header .mobile-menu a.active{color:" + activeText + "!important}" : "");
-    }
     if (Array.isArray(s.nav) && s.nav.length) {
       [".nav-links", "#mobileMenu"].forEach(function (sel) {
         var ul = document.querySelector("header " + sel);
@@ -182,18 +180,11 @@
       var bg = safeUrl(h.bg_image_url);
       hero.style.backgroundImage = bg ? 'url("' + bg.replace(/"/g, "%22") + '")' : "";
       hero.style.backgroundSize = bg ? "cover" : "";
-      hero.style.backgroundPosition = "center";
+      hero.style.backgroundPosition = bg ? "center" : "";
       cms("hero-video").forEach(function (v) {
-        var off = h.background_type ? h.background_type !== "video" : h.use_video === false;
-        if (bg) v.setAttribute("poster", bg);
-        if (safeUrl(h.video_url || "")) {
-          var source = v.querySelector("source");
-          if (source && source.getAttribute("src") !== h.video_url) { source.setAttribute("src", safeUrl(h.video_url)); v.load(); }
-          else if (!source && v.getAttribute("src") !== h.video_url) { v.setAttribute("src", safeUrl(h.video_url)); v.load(); }
-        }
+        var off = h.use_video === false;
         v.style.display = off ? "none" : "";
         if (off && v.pause) v.pause();
-        if (!off && v.play) { var play = v.play(); if (play && play.catch) play.catch(function () {}); }
       });
       var ov = cms("hero-overlay")[0];
       if (ov) {
@@ -316,7 +307,7 @@
     var grid = document.querySelector(".committee-grid");
     var more = { en: "Explore committee →", ar: "استكشف اللجنة ←", tr: "Komiteyi keşfet →" }[lang()] || "Explore committee →";
     if (grid) grid.innerHTML = data.map(function (c) {
-      return '<a class="committee-card" href="committee-detail/?id=' + encodeURIComponent(c.slug) + '"><div class="committee-poster"><img src="' + esc(safeUrl(c.image_url)) + '" alt="' + esc(tx(c.image_alt) || tx(c.name)) + '" loading="lazy"></div><div class="committee-copy"><h2>' + esc(tx(c.name)) + "</h2><p>" + esc(tx(c.short_desc)) + '</p><span class="card-more">' + more + "</span></div></a>";
+      return '<a class="committee-card" href="committee/?id=' + encodeURIComponent(c.slug) + '"><div class="committee-poster"><img src="' + esc(safeUrl(c.image_url)) + '" alt="' + esc(tx(c.image_alt) || tx(c.name)) + '" loading="lazy"></div><div class="committee-copy"><h2>' + esc(tx(c.name)) + "</h2><p>" + esc(tx(c.short_desc)) + '</p><span class="card-more">' + more + "</span></div></a>";
     }).join("");
     var slug = new URLSearchParams(location.search).get("id"), article = document.querySelector(".committee-detail-wrap");
     if (article && slug) {
@@ -447,6 +438,48 @@
     return Promise.all(jobs);
   }
 
+  /* ---------------- per-page SEO (client-side progressive enhancement) ----------------
+     Values come from site_settings keys "seo.<page>" (edited in the UCMS).
+     They update <title>, meta description, canonical and Open Graph tags after
+     the page loads; crawlers that do not run JavaScript keep seeing the
+     original HTML metadata. */
+  function seoKey() {
+    if (PAGE !== "other") return PAGE;
+    if (file === "404.html") return "404";
+    return "";
+  }
+  function upsertMeta(attr, name, content, prop) {
+    if (!content) return;
+    var sel = prop ? 'meta[property="' + name + '"]' : 'meta[name="' + name + '"]';
+    var el = document.head.querySelector(sel);
+    if (!el) {
+      el = document.createElement("meta");
+      if (prop) el.setAttribute("property", name); else el.setAttribute("name", name);
+      document.head.appendChild(el);
+    }
+    el.setAttribute(attr, content);
+  }
+  function applySeo() {
+    var key = seoKey();
+    if (!key) return;
+    var s = state.settings["seo." + key];
+    if (!s || typeof s !== "object") return;
+    if (s.title) document.title = String(s.title).slice(0, 300);
+    if (s.description) upsertMeta("content", "description", String(s.description).slice(0, 500));
+    if (s.robots) upsertMeta("content", "robots", String(s.robots).slice(0, 200));
+    if (s.canonical && /^https?:\/\//i.test(s.canonical)) {
+      var link = document.head.querySelector('link[rel="canonical"]');
+      if (!link) { link = document.createElement("link"); link.rel = "canonical"; document.head.appendChild(link); }
+      link.href = s.canonical;
+    }
+    if (s.og_title) upsertMeta("content", "og:title", String(s.og_title).slice(0, 300), true);
+    if (s.og_description) upsertMeta("content", "og:description", String(s.og_description).slice(0, 500), true);
+    if (s.og_image && /^(https?:\/\/|[a-z0-9._~/-]+\.(webp|png|jpe?g))$/i.test(s.og_image)) {
+      upsertMeta("content", "og:image", String(s.og_image), true);
+      upsertMeta("content", "twitter:image", String(s.og_image));
+    }
+  }
+
   /* ---------------- apply everything ---------------- */
   function applyAll() {
     window.GDF_CMS_TEXTS = state.textMap;
@@ -456,7 +489,7 @@
       window.GDF_EVENT_START = state.settings["event.start"];
       document.dispatchEvent(new CustomEvent("gdf:eventstart", { detail: state.settings["event.start"] }));
     }
-    var steps = [applyHeader, applyFooter];
+    var steps = [applyHeader, applyFooter, applySeo];
     if (PAGE === "home") steps.push(applyHome, applyPresident, renderSponsors, function () { reorder("home"); });
     if (PAGE === "president") steps.push(applyPresident);
     if (PAGE === "about") steps.push(applyAbout, function () { reorder("about"); });

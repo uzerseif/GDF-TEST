@@ -1,11 +1,15 @@
 /* =========================================
    GDF'27 — shared helpers for the certificate pages
-   (verify/ + certificate/).
+   (verify.html + certificate.html).
    Only a publishable/anon Supabase key belongs here — never a service_role key.
    ========================================= */
 (function () {
-  var SUPABASE_URL = 'https://tuibokbihauzhwhnbulx.supabase.co';
-  var SUPABASE_ANON_KEY = 'sb_publishable_iXJ7b-TGcV0HqhcbLihKzw_cI10anai';
+  /* Configuration is centralised in cms-config.js (window.GDF_VERIFY_SUPABASE).
+     The constants below are only a fallback for pages that load verify-common.js
+     without cms-config.js. Only publishable/anon keys may appear here. */
+  var cfg = (window.GDF_VERIFY_SUPABASE || {});
+  var SUPABASE_URL = cfg.url || 'https://tuibokbihauzhwhnbulx.supabase.co';
+  var SUPABASE_ANON_KEY = cfg.key || 'sb_publishable_iXJ7b-TGcV0HqhcbLihKzw_cI10anai';
   var LOCALES = { en: 'en-GB', ar: 'ar-u-nu-latn', tr: 'tr-TR' };
   var client = null;
 
@@ -45,7 +49,7 @@
   function lookup(id) {
     var db = getClient();
     if (!db) return Promise.resolve({ error: 'unavail' });
-    return db.rpc('verify_certificate', { p_cert_id: id }).then(function (res) {
+    return db.rpc('verify_certificate', { p_certificate_id: id }).then(function (res) {
       if (res.error) {
         console.error(res.error);
         return { error: 'failed' };
