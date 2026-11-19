@@ -83,20 +83,25 @@
       }
     };
   };
-  /* Puts editors on a page with one Save button and live preview. */
+  /* Puts editors on a page with one Save button and live preview.
+     The input/change listeners attach to a wrapper INSIDE the view, so they
+     are discarded with the page instead of accumulating on the persistent
+     #view node across navigations. */
   U.editorPage = function (host, editors, extraSave) {
-    editors.forEach(function (e) { host.appendChild(e.el); });
-    host.appendChild(A.saveBar(function () {
+    var wrap = h("div");
+    editors.forEach(function (e) { wrap.appendChild(e.el); });
+    wrap.appendChild(A.saveBar(function () {
       if (!editors.every(function (e) { return e.validate(); })) return false;
       return editors.reduce(function (p, e) { return p.then(e.save); }, Promise.resolve()).then(function () { if (extraSave) return extraSave(); });
     }, t("f.fallback")));
+    host.appendChild(wrap);
     function draft() {
       var msg = { texts: {}, sectionList: [] };
       editors.forEach(function (e) { var d = e.draft(); Object.assign(msg.texts, d.texts); if (d.section) msg.sectionList.push(d.section); if (d.settings) msg.settings = Object.assign(msg.settings || {}, d.settings); });
       return msg;
     }
-    host.addEventListener("input", function () { A.queuePreview(draft); });
-    host.addEventListener("change", function () { A.queuePreview(draft); });
+    wrap.addEventListener("input", function () { A.queuePreview(draft); });
+    wrap.addEventListener("change", function () { A.queuePreview(draft); });
   };
   /* Order + visibility + colours of the sections of one page. */
   U.sectionsManager = function (page, defs, help) {
@@ -128,10 +133,12 @@
     };
   };
   U.managerPage = function (host, mgr) {
-    host.appendChild(mgr.el);
-    host.appendChild(A.saveBar(mgr.save));
+    var wrap = h("div");
+    wrap.appendChild(mgr.el);
+    wrap.appendChild(A.saveBar(mgr.save));
+    host.appendChild(wrap);
     var send = function () { A.queuePreview(function () { return { sectionList: mgr.draft().all }; }); };
-    host.addEventListener("input", send); host.addEventListener("change", send);
+    wrap.addEventListener("input", send); wrap.addEventListener("change", send);
     mgr.list.addEventListener("drop", send); mgr.list.addEventListener("click", send);
   };
 

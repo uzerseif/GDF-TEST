@@ -108,20 +108,20 @@
     }
     function renderStats() {
       return Promise.all([
-        db.from("builder_project_pages").select("is_published", { count: "exact" }),
+        db.from("builder_project_pages").select("id", { count: "exact", head: true }),
+        db.from("builder_project_pages").select("id", { count: "exact", head: true }).eq("is_published", true),
         count("builder_project_assets"), count("team_members"), count("sponsors"),
         count("committees"), count("applications"), count("faqs"),
-        Promise.resolve(Object.keys(A.data.texts || {}).length),
-        count("builder_project_revisions"), count("builder_project_releases")
+        Promise.resolve(Object.keys(A.data.texts || {}).length)
       ]).then(function (r) {
-        var pages = r[0], pub = 0, total = 0;
-        if (!pages.error && pages.data) { total = pages.data.length; pub = pages.data.filter(function (x) { return x.is_published; }).length; }
-        var values = [total, pub, Math.max(0, total - pub), r[1], r[2], r[3], r[4], r[5], r[6], r[7]];
-        cards.forEach(function (c, i) {
-          if (i < 3) { c.setValue(values[i] == null ? "—" : values[i]); return; }
-          if (i === 9) { c.setValue(values[7] + ""); return; }
-          c.setValue(values[i] == null ? "—" : values[i]);
-        });
+        var total = r[0].count, pub = r[1].count;
+        var values = [
+          total == null ? null : total,
+          pub == null ? null : pub,
+          (total != null && pub != null) ? Math.max(0, total - pub) : null,
+          r[2], r[3], r[4], r[5], r[6], r[7], r[8]
+        ];
+        cards.forEach(function (c, i) { c.setValue(values[i] == null ? "—" : values[i]); });
       });
     }
     return Promise.all([renderStats(), renderActivity(), renderHealth(), renderProjects()]).catch(A.fail);
@@ -136,20 +136,44 @@
     var stamp = h("span", { class: "muted small" });
     var rerun = h("button", { type: "button", class: "btn btn-sm", on: { click: function () { run(); } } }, "↻ " + t("ucms.health.rerun"));
     view.appendChild(A.card(t("ucms.health.title"), [h("div", { class: "toolbar", "data-nodirty": "1" }, stamp, rerun), box], { help: t("ucms.health.sub") }));
+
+    /* Database diagnostics: tables, columns, RPCs, storage, RLS, migrations */
+    var dbBox = h("div", { class: "db-health" });
+    var dbStamp = h("span", { class: "muted small" });
+    var dbRerun = h("button", { type: "button", class: "btn btn-sm", on: { click: function () { runDb(); } } }, "↻ " + t("ucms.health.rerun"));
+    view.appendChild(A.card(t("ucms.health.dbTitle"), [h("div", { class: "toolbar", "data-nodirty": "1" }, dbStamp, dbRerun), dbBox], { help: t("ucms.health.dbSub") }));
+
+    var CLASS = { ok: "", warn: " warn", error: " bad", missing: " bad", migration: " bad", permission: " bad", fail: " bad", unknown: " unk" };
+    var LABEL = function (s) { return t("ucms.health." + (s === "ok" ? "ok" : s === "warn" ? "warn" : s === "error" ? "error" : s === "missing" ? "missing" : s === "migration" ? "migration" : s === "permission" ? "permission" : s === "fail" ? "fail" : "unknown")); };
     function run() {
       box.innerHTML = '<div class="empty"><span class="spinner sm"></span> ' + A.esc(t("msg.loading")) + "</div>";
       return A.health().then(function (res) {
         box.innerHTML = "";
         stamp.textContent = t("ucms.health.lastRun") + ": " + A.fmtDateTime(res.at);
-        var order = { ok: 0, warn: 1, error: 2, unknown: 3 };
+        var order = { ok: 0, warn: 1, error: 2, missing: 2, migration: 2, permission: 2, fail: 3, unknown: 4 };
         res.checks.slice().sort(function (a, b) { return order[b.status] - order[a.status]; }).forEach(function (c) {
-          var label = t("ucms.health." + (c.status === "ok" ? "ok" : c.status === "warn" ? "warn" : c.status === "error" ? "error" : "unknown"));
-          box.appendChild(h("div", { class: "check big " + (c.status === "ok" ? "" : (c.status === "warn" ? " warn" : (c.status === "error" ? " bad" : " unk"))), role: "status" },
+          box.appendChild(h("div", { class: "check big " + CLASS[c.status], role: "status" },
             h("i", { "aria-hidden": "true" }),
-            h("div", null, h("b", null, c.label, " — ", label), h("div", { class: "muted small" }, c.detail || ""))));
+            h("div", null, h("b", null, c.label, " — ", LABEL(c.status)), h("div", { class: "muted small" }, c.detail || ""))));
         });
       }).catch(A.fail);
     }
-    return run();
+    function runDb() {
+      dbBox.innerHTML = '<div class="empty"><span class="spinner sm"></span> ' + A.esc(t("msg.loading")) + "</div>";
+      return A.dbHealth().then(function (res) {
+        dbBox.innerHTML = "";
+        dbStamp.textContent = t("ucms.health.lastRun") + ": " + A.fmtDateTime(res.at);
+        res.groups.forEach(function (g) {
+          dbBox.appendChild(h("div", { class: "db-group" },
+            h("h3", { class: "db-group-title " + CLASS[g.status].trim() }, t("ucms.health.gStatus") + " — ", LABEL(g.status), " · ", g.name)));
+          g.items.forEach(function (it) {
+            dbBox.appendChild(h("div", { class: "check" + CLASS[it.status], title: it.detail || "" },
+              h("i", { "aria-hidden": "true" }), h("b", null, it.label),
+              h("span", { class: "muted small" }, (it.detail ? " · " + it.detail : "") + " · " + LABEL(it.status))));
+          });
+        });
+      }).catch(A.fail);
+    }
+    return Promise.all([run(), runDb()]);
   } });
 })();

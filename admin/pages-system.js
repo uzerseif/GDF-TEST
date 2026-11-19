@@ -302,6 +302,7 @@
   /* ==================================================================== */
   A.register("users", { group: "system", icon: "☰", title: "ucms.nav.users", render: function (view) {
     var list = h("div", { class: "rows" });
+    var inviteHost = h("div");           /* built once; load() only toggles it */
     view.appendChild(A.card(t("ucms.users.title"), [list], { help: t("ucms.users.sub") }));
     function load() {
       list.innerHTML = '<div class="empty"><span class="spinner sm"></span> ' + A.esc(t("msg.loading")) + "</div>";
@@ -329,9 +330,9 @@
               h("button", { type: "button", class: "btn btn-sm btn-danger", disabled: !A.can.users || isSelf, on: { click: function () { revoke(u); } } }, t("ucms.users.revoke"))) }));
         });
         if (!rows.length) list.appendChild(h("div", { class: "empty" }, t("msg.empty")));
-        if (A.can.users) {
-          view.appendChild(A.card(t("ucms.users.invite"), inviteCard(), { help: t("ucms.users.inviteHelp") }));
-        }
+        /* invite card is created once and toggled, not re-appended per load */
+        inviteHost.innerHTML = "";
+        if (A.can.users) inviteHost.appendChild(A.card(t("ucms.users.invite"), inviteCard(), { help: t("ucms.users.inviteHelp") }));
       }).catch(A.fail);
     }
     function inviteCard() {
@@ -370,6 +371,7 @@
         });
       });
     }
+    view.appendChild(inviteHost);
     return load();
   } });
 

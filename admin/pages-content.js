@@ -374,11 +374,19 @@
     var fields = A.allTextKeys().map(function (k) {
       var f = A.textField(k, A.textDefaults(k).en.replace(/<[^>]+>/g, " ").slice(0, 70) || k, { rows: 3 });
       var missing = h("span", { class: "lang-missing" });
-      var row = h("div", { class: "text-row", "data-key": k }, h("div", null, h("code", null, k), A.data.texts[k] ? A.badge(t("tx.edited"), "gold") : null, missing, h("div", { class: "small muted" }, A.textPages(k).join(", "))), f);
-      row._f = f; row._missing = missing;
+      var state = h("span", { class: "tx-state" });
+      var row = h("div", { class: "text-row", "data-key": k }, h("div", null, h("code", null, k), state, missing, h("div", { class: "small muted" }, A.textPages(k).join(", "))), f);
+      row._f = f; row._missing = missing; row._state = state;
       host.appendChild(row);
       return f;
     });
+    function paintEdited() {
+      A.$$(".text-row", host).forEach(function (r) {
+        var k = r.getAttribute("data-key");
+        r._state.innerHTML = "";
+        if (A.data.texts[k]) r._state.appendChild(A.badge(t("tx.edited"), "gold"));
+      });
+    }
     function missingTexts(k) {
       var d = A.textDefaults(k), cur = A.data.texts[k] || {}, miss = [];
       ["ar", "tr"].forEach(function (l) {
@@ -405,7 +413,15 @@
     }
     [search, pageSel, editedOnly, langSel].forEach(function (el) { el.addEventListener("input", filter); el.addEventListener("change", filter); });
     view.appendChild(A.card(t("nav.texts"), [h("div", { class: "toolbar", "data-nodirty": "1" }, search, pageSel, editedOnly, langSel), host], { help: t("f.fallback") }));
-    view.appendChild(A.saveBar(function () { return A.saveTexts(fields).then(function () { U.audit("content.texts.save", "site_texts", "batch", fields.length + " keys", {}); A.go("texts", true); }); }));
+    view.appendChild(A.saveBar(function () {
+      /* saveTexts already refreshed A.data.texts — update badges + filters in
+         place instead of re-rendering the whole page (keeps scroll + filters). */
+      return A.saveTexts(fields).then(function () {
+        U.audit("content.texts.save", "site_texts", "batch", fields.length + " keys", {});
+        paintEdited();
+        filter();
+      });
+    }));
     filter();
   } });
 

@@ -47,6 +47,20 @@
     var autosaveTimer = null;
     var lastSavedSig = "";
     var autosaveAt = null;
+    var saveSeq = 0;          /* monotonic save token: only the newest save wins */
+    var saveInFlight = false; /* overlapping saves are chained, never parallel */
+
+    /* One GrapesJS instance at a time: destroy the previous editor before a
+       new canvas is built and when the page is left (A.go runs cleanups). */
+    function destroyEditor() {
+      clearTimeout(autosaveTimer);
+      clearTimeout(saveTimer);
+      if (editor) {
+        try { editor.destroy(); } catch (e) { /* already gone */ }
+        editor = null;
+      }
+    }
+    A.addCleanup(destroyEditor);
 
     function loadProjects() {
       return db.from("builder_projects").select("id,slug,name,status").order("name").then(function (r) {
@@ -187,6 +201,7 @@
     }
 
     function initEditor(documentRow, legacy, responsive) {
+      destroyEditor();
       canvasHost.innerHTML = "";
       blocksHost.innerHTML = "";
       layersHost.innerHTML = "";
@@ -217,16 +232,22 @@
       var baseCss = documentRow ? documentRow.css : legacy.css;
       editor.setStyle(baseCss + "\n" + responsive);
       lastSavedSig = documentRow ? JSON.stringify([documentRow.html, documentRow.css]) : JSON.stringify([legacy.html, legacy.css]);
+      /* 'load' fires when the canvas finished rendering; the timeout is only
+         a safety net so a missed event can never leave autosave disabled. */
+      editor.on("load", function () { initializing = false; });
+      setTimeout(function () { initializing = false; }, 1200);
       editor.getModel().on("change", function () { if (!initializing) onCanvasChange(); });
-      setTimeout(function () { initializing = false; }, 300);
       status.textContent = (documentRow ? documentRow.status : t("editor.documentMissing"))
         + (documentRow && documentRow.status === "published" ? " · " + t("ucms.editor.publishedBadge") : "");
       if (autosaveAt) status.textContent += " · " + t("ucms.save.autosaved") + " " + autosaveAt;
     }
 
+    var loadSeq = 0; /* only the newest page load may initialise the editor */
     function loadPage(pageId) {
       currentPage = null;
       var page = null;
+      var seq = ++loadSeq;
+      autosaveAt = null;
       db.from("builder_project_pages").select("*").eq("id", pageId).single().then(function (r) {
         if (r.error) throw r.error;
         page = r.data;
@@ -237,7 +258,7 @@
           db.from("builder_project_responsive").select("*").eq("project_id", projectId)
         ]);
       }).then(function (r) {
-        if (!r) return;
+        if (seq !== loadSeq || !r) return;   /* a newer page load superseded this one */
         initEditor(r[0].error ? null : r[0].data, r[1], r[2].error ? "" : responsiveCss(r[2].data));
       }).catch(A.fail);
     }
@@ -280,40 +301,60 @@
     function saveDraft(publish, opts) {
       opts = opts || {};
       if (!editor || !currentPage) return Promise.resolve(false);
-      var body = exportDocument();
-      var rec = {
-        project_id: projectId,
-        page_id: currentPage.id,
-        html: body.html,
-        css: body.css,
-        javascript: body.js,
-        assets: body.assets,
-        status: publish ? "published" : (opts.silent ? undefined : "draft")
+      /* Race control: only one request at a time; a save requested while
+         another is in flight is chained afterwards, and every completion
+         checks its sequence token so an older response can never overwrite
+         a newer document state or status label. */
+      var seq = ++saveSeq;
+      var run = function () {
+        var body = exportDocument();
+        var rec = {
+          project_id: projectId,
+          page_id: currentPage.id,
+          html: body.html,
+          css: body.css,
+          javascript: body.js,
+          assets: body.assets,
+          status: publish ? "published" : (opts.silent ? undefined : "draft")
+        };
+        if (!publish) delete rec.status; /* keep the existing status on autosave/draft */
+        return db.from("builder_editor_documents").upsert(rec, { onConflict: "project_id,page_id" }).select().single().then(function (r) {
+          if (seq !== saveSeq) return true; /* superseded by a newer save */
+          if (r.error) throw r.error;
+          if (publish) {
+            return db.rpc("publish_builder_document", { p_document_id: r.data.id, p_label: "Published release" }).then(function (release) {
+              if (seq !== saveSeq) return true;
+              if (release.error) throw release.error;
+              A.setDirty(false);
+              lastSavedSig = JSON.stringify([body.html, body.css]);
+              U.audit("publish.publish", "builder_documents", r.data.id, A.tx(currentPage.title) || currentPage.slug, { release: release.data, project: projectId });
+              A.notify("success", t("ucms.editor.dbPublished"), (A.tx(currentPage.title) || currentPage.slug) + " · " + t("ucms.editor.deployNote"), "pages");
+              A.toast(t("ucms.editor.dbPublished"), "ok");
+              status.textContent = "published · " + t("ucms.editor.publishedBadge");
+              return true;
+            });
+          }
+          A.setDirty(false);
+          lastSavedSig = JSON.stringify([body.html, body.css]);
+          U.audit(opts.silent ? "editor.autosave" : "editor.save_draft", "builder_documents", r.data.id, A.tx(currentPage.title) || currentPage.slug, { project: projectId });
+          if (!opts.silent) {
+            A.toast(t("ucms.editor.dbSaved"), "ok");
+            status.textContent = "draft · " + t("ucms.save.saved") + " " + new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+          }
+          return true;
+        });
       };
-      if (!publish) delete rec.status; /* keep the existing status on autosave/draft */
-      return db.from("builder_editor_documents").upsert(rec, { onConflict: "project_id,page_id" }).select().single().then(function (r) {
-        if (r.error) throw r.error;
-        if (publish) {
-          return db.rpc("publish_builder_document", { p_document_id: r.data.id, p_label: "Published release" }).then(function (release) {
-            if (release.error) throw release.error;
-            A.setDirty(false);
-            lastSavedSig = JSON.stringify([body.html, body.css]);
-            U.audit("publish.publish", "builder_documents", r.data.id, A.tx(currentPage.title) || currentPage.slug, { release: release.data, project: projectId });
-            A.notify("success", t("ucms.editor.dbPublished"), (A.tx(currentPage.title) || currentPage.slug) + " · " + t("ucms.editor.deployNote"), "pages");
-            A.toast(t("ucms.editor.dbPublished"), "ok");
-            status.textContent = "published · " + t("ucms.editor.publishedBadge");
-            return true;
-          });
-        }
-        A.setDirty(false);
-        lastSavedSig = JSON.stringify([body.html, body.css]);
-        U.audit(opts.silent ? "editor.autosave" : "editor.save_draft", "builder_documents", r.data.id, A.tx(currentPage.title) || currentPage.slug, { project: projectId });
-        if (!opts.silent) {
-          A.toast(t("ucms.editor.dbSaved"), "ok");
-          status.textContent = "draft · " + t("ucms.save.saved") + " " + new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-        }
-        return true;
-      });
+      var finish = function (p) {
+        return p.then(function (ok) { saveInFlight = false; if (seq === saveSeq && pending) { var n = pending; pending = null; return finish(n()); } return ok; },
+          function (e) { saveInFlight = false; throw e; });
+      };
+      var pending = null;
+      if (saveInFlight) {
+        pending = run;
+        return Promise.resolve(true);
+      }
+      saveInFlight = true;
+      return finish(run());
     }
 
     function saveRevision() {
@@ -674,6 +715,8 @@
         });
         if (projectId) projectSelect.value = projectId;
         if (!projectSelect.value && projectSelect.options.length) projectSelect.value = projectSelect.options[0].value;
+        /* sync the closure before rendering tabs, or every query filters project_id = null */
+        projectId = projectSelect.value || null;
         renderTabs();
       });
     }
@@ -822,6 +865,8 @@
         });
         if (projectId) projectSelect.value = projectId;
         if (!projectSelect.value && projectSelect.options.length) projectSelect.value = projectSelect.options[0].value;
+        /* sync the closure before rendering tabs, or every query filters project_id = null */
+        projectId = projectSelect.value || null;
         renderTabs();
       }).catch(A.fail);
     }

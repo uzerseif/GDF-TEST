@@ -27,7 +27,11 @@
         (r.data || []).forEach(function (p) { projectSelect.appendChild(h("option", { value: p.id }, A.tx(p.name) || p.slug)); });
         if (projectId) projectSelect.value = projectId;
         if (!projectSelect.value && projectSelect.options.length) projectSelect.value = projectSelect.options[0].value;
-        var sel = (r.data || []).filter(function (p) { return p.id === projectSelect.value; })[0];
+        /* keep the closure variable in sync with the select, otherwise the
+           first load queries project_id = null and the list looks empty */
+        projectId = projectSelect.value || null;
+        A.editorProjectId = projectId;
+        var sel = (r.data || []).filter(function (p) { return p.id === projectId; })[0];
         projectIsSystem = !!(sel && sel.is_system);
         return load();
       });
@@ -93,9 +97,10 @@
             + " · " + t("ucms.pages.colPublished") + ": " + (pub[p.id] ? A.fmtDateTime(pub[p.id]) : t("ucms.pages.never"));
           list.appendChild(A.row({ id: p.id, title: A.tx(p.title) || p.slug, sub: sub, badges: statusBadges(p), actions: actions }));
         });
-        A.sortable(list, saveOrder, "ucms-pages-" + projectId);
       }).catch(A.fail);
     }
+    /* one sortable wiring per page instance — load() only refreshes rows */
+    A.sortable(list, saveOrder, "ucms-pages-" + projectId);
     function saveOrder() {
       var jobs = A.$$(":scope > .row", list).map(function (row, i) {
         return db.from("builder_project_pages").update({ sort_order: i }).eq("id", row.getAttribute("data-id"));
@@ -153,7 +158,7 @@
     function showRevisions(p) {
       var box = h("div", { class: "rows" });
       box.appendChild(h("div", { class: "empty" }, h("span", { class: "spinner sm" })));
-      A.modal({ title: t("ucms.pages.revisions") + " · " + (A.tx(p.title) || p.slug), body: box, size: "md" });
+      var dlg = A.modal({ title: t("ucms.pages.revisions") + " · " + (A.tx(p.title) || p.slug), body: box, size: "md" });
       db.from("builder_project_revisions").select("*").eq("project_id", projectId).eq("page_id", p.id)
         .order("created_at", { ascending: false }).limit(30).then(function (r) {
           box.innerHTML = "";
@@ -168,7 +173,7 @@
                     if (x.error) return A.fail(x.error);
                     U.audit("publish.revision.restore", "builder_revision", rev.id, rev.label || "", { page: p.id });
                     A.toast(t("publish.restored"), "ok");
-                    document.querySelector(".modal-backdrop") && document.querySelectorAll(".modal-backdrop").forEach(function (m) { m.remove(); });
+                    dlg.close();
                     load();
                   });
                 });
@@ -410,10 +415,16 @@
     var loaded = {};
     view.appendChild(h("p", { class: "muted" }, t("ucms.seo.sub")));
     if (!A.can.settings) view.appendChild(h("div", { class: "banner", style: { margin: "0 0 16px" } }, t("ucms.settings.adminOnly")));
-    var tabs = SEO_PAGES.map(function (p) {
-      return { key: p[0], label: p[0] + " (" + p[1] + ")", render: function (host) { renderPage(host, p[0]); } };
+    /* Load the existing SEO settings BEFORE the tabs render, otherwise the
+       first tab shows empty fields even when values are stored. */
+    return db.from("site_settings").select("key,value").like("key", "seo.%").then(function (r) {
+      if (r.error) throw r.error;
+      (r.data || []).forEach(function (x) { loaded[x.key] = x.value || {}; });
+      var tabs = SEO_PAGES.map(function (p) {
+        return { key: p[0], label: p[0] + " (" + p[1] + ")", render: function (host) { renderPage(host, p[0]); } };
+      });
+      view.appendChild(A.tabs(tabs));
     });
-    view.appendChild(A.tabs(tabs));
 
     function renderPage(host, pageKey) {
       var key = "seo." + pageKey;
@@ -459,9 +470,6 @@
       host.appendChild(A.card(t("ucms.seo.title") + " · " + pageKey, [A.grid(2, [title, desc, canonical, ogTitle, ogDesc, ogImage, robots]), warn, preview, bar]));
       refresh();
     }
-    db.from("site_settings").select("key,value").like("key", "seo.%").then(function (r) {
-      if (!r.error) (r.data || []).forEach(function (x) { loaded[x.key] = x.value || {}; });
-    });
   } });
 
   /* ==================================================================== */
