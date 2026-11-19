@@ -9,10 +9,10 @@
      and `verify_certificate()` RPC live in a separate project; verify.js and
      certificate.js keep reading this configuration. */
 window.GDF_SUPABASE = {
-  url: "https://jsmhvlvifkzsuydqctfu.supabase.co",
-  key: "sb_publishable_Koy30Joiyf8CntvTP-pfOg_RB-evRbP"
+  url: "https://grjyfqdyywjxuncrumkd.supabase.co",
+  key: "sb_publishable_TfErEd2_rdGZzJGL6h8f8Q_89u4Xzf0"
 };
 window.GDF_VERIFY_SUPABASE = {
-  url: "https://tuibokbihauzhwhnbulx.supabase.co",
-  key: "sb_publishable_iXJ7b-TGcV0HqhcbLihKzw_cI10anai"
+  url: "https://grjyfqdyywjxuncrumkd.supabase.co",
+  key: "sb_publishable_TfErEd2_rdGZzJGL6h8f8Q_89u4Xzf0"
 };
