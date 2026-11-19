@@ -1,6 +1,6 @@
 /* =========================================
    GDF'27 — certificate verification page
-   Checks the ID, then opens certificate/?id=...
+   Checks the ID, then opens /certificate/?id=...
    ========================================= */
 (function () {
   var V = window.GDFVerify;
@@ -86,7 +86,7 @@
     show('checking', 'info');
     V.lookup(id).then(function (result) {
       if (result.error) { show(result.error, 'error'); return; }
-      var url = new URL('certificate/', location.href);
+      var url = new URL('certificate/', document.baseURI);
       url.searchParams.set('id', id);
       location.assign(url.href);
     }).then(function () {

@@ -1,14 +1,32 @@
 /* =====================================================================
-   GDF'27 Content Studio — core (auth, UI kit, uploads, data helpers).
-   Pages are registered in admin-pages.js.
+   GDF'27 UCMS — core (auth, UI kit, uploads, data helpers, navigation).
+   Pages are registered by the admin/pages-*.js modules; admin/boot.js
+   starts the router. All code was carried over from the former
+   admin-pages.js monolith and extended for the UCMS surfaces.
    Security: only the publishable key is used; every write is checked by
    Row Level Security (admin_users + is_staff()/is_admin()) in Supabase.
    ===================================================================== */
 (function () {
   "use strict";
   var cfg = window.GDF_SUPABASE || {};
+  /* Graceful degradation when a CDN library fails to load: show a clear
+     error screen instead of a blank page or a cryptic exception. */
+  function depsError(missing) {
+    document.body.innerHTML = '<div style="max-width:560px;margin:12vh auto;padding:32px;font-family:system-ui,sans-serif;color:#262626;background:#f1e8d1;border-radius:16px;text-align:center">' +
+      '<h2 style="margin:0 0 10px">Required libraries failed to load</h2>' +
+      '<p style="opacity:.8">Missing: ' + missing.join(", ") + '. Check the network connection and retry.</p>' +
+      '<button onclick="location.reload()" style="padding:10px 22px;border:0;border-radius:999px;background:#c9a44c;font-weight:600;cursor:pointer">Retry</button></div>';
+  }
+  if (!window.supabase || !window.supabase.createClient) { depsError(["Supabase SDK"]); return; }
+  if (!cfg.url || !cfg.key) { depsError(["Supabase configuration (cms-config.js)"]); return; }
   var A = window.CMSA = { pages: {}, order: [] };
-  var db = A.db = window.supabase.createClient(cfg.url, cfg.key, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "gdf-admin-auth" } });
+  var db;
+  try {
+    db = A.db = window.supabase.createClient(cfg.url, cfg.key, { auth: { persistSession: true, autoRefreshToken: true, storageKey: "gdf-admin-auth" } });
+  } catch (e) {
+    depsError(["Supabase client (" + (e && e.message || "configuration error") + ")"]);
+    return;
+  }
   var DICT = window.ADMIN_I18N || { en: {} };
   var LANG_KEY = "gdf-admin-lang";
   var $ = function (s, r) { return (r || document).querySelector(s); };
@@ -67,7 +85,7 @@
     u = String(u || "").trim();
     if (!u) return !(opts && opts.required);
     if (opts && opts.https) return /^https:\/\/[^\s"'<>]+$/i.test(u);
-    return /^(https?:\/\/[^\s"'<>]+|mailto:[^\s"'<>]+|tel:[+\d\s()-]+|#[\w-]*|[a-z0-9._~\/-]+\.html([?#][^\s"'<>]*)?)$/i.test(u);
+    return /^(https?:\/\/[^\s"'<>]+|mailto:[^\s"'<>]+|tel:[+\d\s()-]+|#[\w-]*|[a-z0-9._~\/-]+(?:\.html)?\/?([?#][^\s"'<>]*)?)$/i.test(u);
   };
 
   /* ---------------- toasts / dialogs ---------------- */
@@ -242,13 +260,12 @@
   };
 
   /* ---------------- image upload (Supabase Storage, bucket site-media) ---------------- */
-  var TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "video/mp4": "mp4", "video/webm": "webm" }, MAX_IMAGE = 5 * 1024 * 1024, MAX_VIDEO = 50 * 1024 * 1024;
+  var TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" }, MAX = 5 * 1024 * 1024;
   A.publicUrl = function (path) { return cfg.url.replace(/\/$/, "") + "/storage/v1/object/public/site-media/" + path.split("/").map(encodeURIComponent).join("/"); };
   A.upload = function (file, folder, onProgress) {
     return new Promise(function (resolve, reject) {
-      if (!file || !TYPES[file.type]) return reject(new Error("Unsupported file type. Use JPG, PNG, WebP, MP4 or WebM."));
-      var isVideo = file.type.indexOf("video/") === 0;
-      if (file.size > (isVideo ? MAX_VIDEO : MAX_IMAGE)) return reject(new Error(isVideo ? "Video must be 50 MB or smaller." : t("up.tooBig")));
+      if (!file || !TYPES[file.type]) return reject(new Error(t("up.badType")));
+      if (file.size > MAX) return reject(new Error(t("up.tooBig")));
       db.auth.getSession().then(function (r) {
         var token = r.data && r.data.session && r.data.session.access_token;
         if (!token) return reject(new Error("Not signed in"));
@@ -314,40 +331,6 @@
     el.set = set;
     el.validate = function () { var ok = !o.required || !!value; if (!ok) A.toast(label + ": " + t("msg.required"), "error"); box.classList.toggle("invalid", !ok); return ok; };
     el.upload = handle;
-    return el;
-  };
-
-  /* Video uploader for the homepage hero. MP4/WebM only, max 50 MB. */
-  A.fVideo = function (label, url, o) {
-    o = o || {};
-    var value = url || "";
-    var file = h("input", { type: "file", accept: "video/mp4,video/webm", hidden: true, "data-nodirty": "1" });
-    var preview = h("video", { controls: true, muted: true, playsinline: true, preload: "metadata", style: { width: "100%", maxHeight: "180px", background: "#000", borderRadius: "10px" } });
-    var status = h("div", { class: "u-hint" }, value ? "Current video selected" : "No video selected");
-    var bar = h("div", { class: "progress", hidden: true }, h("i"));
-    var pick = h("button", { type: "button", class: "btn btn-sm", on: { click: function () { file.click(); } } }, value ? t("btn.replace") : t("btn.upload"));
-    var remove = h("button", { type: "button", class: "btn btn-sm btn-danger", on: { click: function () { set(""); changed(); } } }, t("btn.remove"));
-    var box = h("div", { class: "uploader media-uploader" }, h("div", { class: "thumb", style: { width: "100%", height: "auto", minHeight: "90px", background: "transparent" } }, preview), h("div", null, status, h("div", { class: "u-actions" }, pick, remove), bar, file));
-    function set(v) {
-      value = v || "";
-      if (value) { preview.src = value; preview.hidden = false; status.textContent = "Video ready · MP4/WebM"; }
-      else { preview.removeAttribute("src"); preview.load(); preview.hidden = true; status.textContent = "No video selected"; }
-      pick.textContent = value ? t("btn.replace") : t("btn.upload");
-      remove.hidden = !value;
-    }
-    function changed() { box.dispatchEvent(new Event("input", { bubbles: true })); if (o.onChange) o.onChange(value); }
-    file.addEventListener("change", function () {
-      var f = file.files && file.files[0]; if (!f) return;
-      if (f.type !== "video/mp4" && f.type !== "video/webm") { A.toast("Choose an MP4 or WebM video.", "error"); file.value = ""; return; }
-      pick.disabled = true; bar.hidden = false;
-      A.upload(f, o.folder || "home/hero", function (n) { bar.firstChild.style.width = Math.round(n * 100) + "%"; })
-        .then(function (r) { set(r.url); changed(); A.toast("Video uploaded.", "ok"); }, function (e) { A.toast("Upload failed: " + e.message, "error"); })
-        .then(function () { pick.disabled = false; file.value = ""; bar.hidden = true; });
-    });
-    set(value);
-    var el = h("div", { class: "field" }, h("span", { class: "field-label" }, label), box);
-    el.get = function () { return value; };
-    el.validate = function () { return true; };
     return el;
   };
 
@@ -573,17 +556,39 @@
     return h("section", { class: "card" }, title || o.actions ? h("div", { class: "card-head" }, h("h2", null, title || ""), o.actions || null) : null, o.help ? h("p", { class: "muted small", style: { marginTop: "-6px" } }, o.help) : null, children);
   };
   A.grid = function (n, children) { return h("div", { class: "grid grid-" + n }, children); };
-  A.pageHead = function (title, desc, actions) { return h("div", { class: "page-head" }, h("div", null, h("p", { class: "muted", style: { margin: 0 } }, desc || "")), actions || null); };
-  A.saveBar = function (onSave, note) {
-    var btn = h("button", { type: "button", class: "btn btn-gold", on: { click: function () {
-      A.busy(btn, true);
-      Promise.resolve().then(onSave).then(function (ok) {
-        if (ok === false) return;
-        A.setDirty(false); A.toast(t("msg.saved"), "ok"); A.preview.reload();
-      }).catch(A.fail).then(function () { A.busy(btn, false); });
-    } } }, t("btn.save"));
-    return h("div", { class: "savebar" }, note ? h("span", { class: "note" }, note) : null, btn);
+  A.pageHead = function (title, desc, actions) { return h("div", { class: "page-head" }, h("div", null, h("p", { class: "muted", style: { margin: 0 } }, desc || "")), actions || null);
   };
+  /* Unified save bar with explicit state feedback:
+     idle -> saving -> saved (time) / failed; offline overrides the label. */
+  A.saveBar = function (onSave, note) {
+    var statusEl = h("span", { class: "save-status", role: "status" });
+    function setState(state) {
+      statusEl.className = "save-status " + state;
+      statusEl.textContent = state === "saving" ? t("ucms.save.saving")
+        : state === "saved" ? t("ucms.save.saved") + " " + new Date().toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+        : state === "failed" ? t("ucms.save.failed")
+        : state === "offline" ? t("ucms.save.offline")
+        : A.dirty ? t("ucms.save.unsaved") : "";
+    }
+    A._saveStatusHandlers = A._saveStatusHandlers || [];
+    A._saveStatusHandlers.push(setState);
+    var btn = h("button", { type: "button", class: "btn btn-gold", on: { click: function () {
+      A.busy(btn, true); setState("saving");
+      Promise.resolve().then(onSave).then(function (ok) {
+        if (ok === false) { setState(""); return; }
+        A.setDirty(false); setState("saved"); A.toast(t("msg.saved"), "ok"); A.preview.reload();
+      }).catch(function (e) { setState("failed"); A.fail(e); }).then(function () { A.busy(btn, false); });
+    } } }, t("btn.save"));
+    return h("div", { class: "savebar" }, note ? h("span", { class: "note" }, note) : null, statusEl, btn);
+  };
+  window.addEventListener("online", function () {
+    (A._saveStatusHandlers || []).forEach(function (fn) { fn(""); });
+    if (A.user) A.toast(t("app.title") + ": online", "ok");
+  });
+  window.addEventListener("offline", function () {
+    (A._saveStatusHandlers || []).forEach(function (fn) { fn("offline"); });
+    if (A.user) A.toast(t("ucms.save.offline"), "error");
+  });
   A.tabs = function (defs, onShow) {
     var bar = h("div", { class: "tabs", role: "tablist" });
     var host = h("div");
@@ -606,13 +611,54 @@
 
   /* ---------------- navigation ---------------- */
   A.register = function (id, def) { A.pages[id] = def; A.order.push(id); };
+  var NAV_GROUPS = ["overview", "website", "content", "design", "media", "system"];
+  var navSearch = null;
+  function navFilter() {
+    var q = (navSearch && navSearch.value || "").trim().toLowerCase();
+    $$(".nav-cat", $("#sideNav")).forEach(function (cat) {
+      var any = false;
+      $$(".nav-item", cat).forEach(function (b) {
+        var show = !q || b.textContent.toLowerCase().indexOf(q) >= 0;
+        b.hidden = !show;
+        if (show) any = true;
+      });
+      cat.hidden = q && !any;
+    });
+  }
   function buildNav() {
     var nav = $("#sideNav"); nav.innerHTML = "";
-    var group = null, groups = ["overview", "pages", "content", "system"];
-    A.order.slice().sort(function (a, b) { return groups.indexOf(A.pages[a].group) - groups.indexOf(A.pages[b].group) || A.order.indexOf(a) - A.order.indexOf(b); }).forEach(function (id) {
-      var p = A.pages[id];
-      if (p.group !== group) { group = p.group; nav.appendChild(h("div", { class: "nav-group" }, t("nav.group." + group))); }
-      nav.appendChild(h("button", { type: "button", class: "nav-item" + (id === A.current ? " active" : ""), "data-section": id, on: { click: function () { A.go(id); } } }, h("span", { class: "ico", "aria-hidden": "true" }, p.icon), h("span", null, t(p.title))));
+    if (!navSearch) {
+      navSearch = h("input", { type: "search", class: "nav-search", placeholder: "🔍", "aria-label": "Filter menu" });
+      navSearch.addEventListener("input", navFilter);
+    }
+    nav.appendChild(navSearch);
+    navSearch.value = "";
+    var sorted = A.order.slice().sort(function (a, b) {
+      return NAV_GROUPS.indexOf(A.pages[a].group) - NAV_GROUPS.indexOf(A.pages[b].group) || A.order.indexOf(a) - A.order.indexOf(b);
+    });
+    NAV_GROUPS.forEach(function (group) {
+      var ids = sorted.filter(function (id) { return A.pages[id].group === group; });
+      if (!ids.length) return;
+      var key = "ucms-nav-group-" + group;
+      var collapsed = false;
+      try { collapsed = localStorage.getItem(key) === "1"; } catch (e) { /* ignore */ }
+      var head = h("button", { type: "button", class: "nav-group collapsible" + (collapsed ? " collapsed" : ""),
+        "aria-expanded": collapsed ? "false" : "true",
+        on: { click: function () {
+          collapsed = !collapsed;
+          head.classList.toggle("collapsed", collapsed);
+          head.setAttribute("aria-expanded", collapsed ? "false" : "true");
+          try { localStorage.setItem(key, collapsed ? "1" : "0"); } catch (e) { /* ignore */ }
+        } } },
+        h("span", null, t("nav.group." + group)),
+        h("span", { class: "chev", "aria-hidden": "true" }, "▾"));
+      var items = h("div", { class: "nav-cat-items" });
+      ids.forEach(function (id) {
+        var p = A.pages[id];
+        items.appendChild(h("button", { type: "button", class: "nav-item" + (id === A.current ? " active" : ""), "data-section": id, on: { click: function () { A.go(id); } } },
+          h("span", { class: "ico", "aria-hidden": "true" }, p.icon), h("span", null, t(p.title))));
+      });
+      nav.appendChild(h("div", { class: "nav-cat" }, head, items));
     });
   }
   A.go = function (id, force) {
@@ -620,10 +666,17 @@
     if (!force && A.dirty && !window.confirm(t("msg.unsaved"))) return;
     A.setDirty(false);
     A.current = id;
-    try { history.replaceState(null, "", "#" + id); } catch (e) { /* ignore */ }
+    try { history.replaceState(null, "", location.pathname + "#" + id); } catch (e) { /* ignore */ }
     $$(".nav-item").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-section") === id); });
     $("#appView").classList.remove("nav-open");
     var p = A.pages[id], view = $("#view");
+    /* breadcrumb: group › page */
+    var crumbs = $("#crumbs");
+    if (crumbs) {
+      crumbs.innerHTML = "";
+      crumbs.appendChild(h("span", { class: "crumb-group" }, t("nav.group." + p.group)));
+      crumbs.appendChild(h("span", { class: "crumb-sep", "aria-hidden": "true" }, "›"));
+    }
     $("#pageTitle").textContent = t(p.title);
     document.title = t(p.title) + " · " + t("app.title");
     view.innerHTML = '<div class="empty"><span class="spinner sm"></span> ' + A.esc(t("msg.loading")) + "</div>";
@@ -654,8 +707,10 @@
         return db.auth.signOut().then(function () { show("login"); });
       }
       A.user = session.user; A.role = r.data.role;
+      if (A.applyCapabilities) A.applyCapabilities();
       $("#who").innerHTML = "<b>" + A.esc(t("role." + A.role)) + "</b>" + A.esc(session.user.email || "");
       show("app");
+      if (A.ucmsBootUI) A.ucmsBootUI();
       return A.loadCore().then(function () {
         buildNav();
         A.go((location.hash || "").slice(1) || "dashboard", true);

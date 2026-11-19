@@ -8,7 +8,7 @@
   </title>
   <meta content="Explore the GDF&#x27;27 committees, including the UN General Assembly, Security Council, Human Rights Council, WHO, OIC and International Press Corps — Gaziantep Diplomacy Forum 2027." name="description" data-i18n-attr="content:meta.committees"/>
   <meta content="#081933" name="theme-color"/>
-  <link href="https://YOUR-DOMAIN.com/committees/" rel="canonical"/>
+  <link href="committees/" rel="canonical"/>
   <meta content="website" property="og:type"/>
   <meta content="GDF'27" property="og:site_name"/>
   <meta content="Our Committees | GDF&#x27;27" property="og:title" data-i18n-attr="content:title.committees"/>
@@ -32,11 +32,11 @@
   </script>
   <script defer="" src="committees.js">
   </script>
-   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
   <script defer src="cms-public.js"></script>
 </head>
  <body>
-  <a class="skip-link" href="#main" data-i18n="a11y.skip">Skip to main content</a>
+  <a class="skip-link" href="committees/#main" data-i18n="a11y.skip">Skip to main content</a>
   <header data-cms-section="global:header">
    <nav>
     <a class="brand" href="./">
@@ -62,12 +62,12 @@
       </a>
      </li>
      <li>
-      <a data-page="about" href="about-us/" data-i18n="nav.about">
+      <a data-page="about" href="about/" data-i18n="nav.about">
        About Us
       </a>
      </li>
      <li>
-      <a data-page="team" href="our-team/" data-i18n="nav.team">
+      <a data-page="team" href="team/" data-i18n="nav.team">
        Our Team
       </a>
      </li>
@@ -123,12 +123,12 @@
      </a>
     </li>
     <li>
-     <a data-page="about" href="about-us/" data-i18n="nav.about">
+     <a data-page="about" href="about/" data-i18n="nav.about">
       About Us
      </a>
     </li>
     <li>
-     <a data-page="team" href="our-team/" data-i18n="nav.team">
+     <a data-page="team" href="team/" data-i18n="nav.team">
       Our Team
      </a>
     </li>
@@ -148,7 +148,7 @@
     </div>
     <div class="committee-grid">
   
-  <a class="committee-card" href="committee-detail/?id=unga" aria-label="Learn more about United Nations General Assembly" data-i18n-attr="aria-label:aria.unga">
+  <a class="committee-card" href="committee/?id=unga" aria-label="Learn more about United Nations General Assembly" data-i18n-attr="aria-label:aria.unga">
     <div class="committee-poster">
       <!-- <span>UNGA</span> -->
       <img src="images/United Nations General Assembly.webp" alt="" />
@@ -158,7 +158,7 @@
       <p data-i18n="com.unga.desc">Debate international priorities, build consensus across countries, and draft resolutions addressing shared global challenges.</p><span class="card-more" data-i18n="com.explore">Explore committee →</span></div>
   </a>
   
-  <a class="committee-card" href="committee-detail/?id=security-council" aria-label="Learn more about United Nations Security Council" data-i18n-attr="aria-label:aria.security-council">
+  <a class="committee-card" href="committee/?id=security-council" aria-label="Learn more about United Nations Security Council" data-i18n-attr="aria-label:aria.security-council">
     <div class="committee-poster">
       <!-- <span>SC</span> -->
       <img src="images/United Nations Security Council.webp" alt="" />
@@ -166,7 +166,7 @@
     <div class="committee-copy"><h2 data-i18n="com.security-council.name">United Nations Security Council</h2><p data-i18n="com.security-council.desc">Examine questions of international peace and security through urgent debate, negotiation, and strategic decision-making.</p><span class="card-more" data-i18n="com.explore">Explore committee →</span></div>
   </a>
   
-  <a class="committee-card" href="committee-detail/?id=oic" aria-label="Learn more about Organisation of Islamic Cooperation" data-i18n-attr="aria-label:aria.oic">
+  <a class="committee-card" href="committee/?id=oic" aria-label="Learn more about Organisation of Islamic Cooperation" data-i18n-attr="aria-label:aria.oic">
     <div class="committee-poster">
       <!-- <span>OIC</span> -->
       <img src="images/Organisation of Islamic Cooperation.webp" alt="" />
@@ -174,7 +174,7 @@
     <div class="committee-copy"><h2 data-i18n="com.oic.name">Organisation of Islamic Cooperation</h2><p data-i18n="com.oic.desc">Explore cooperation among member states and develop diplomatic responses to issues affecting communities across the world.</p><span class="card-more" data-i18n="com.explore">Explore committee →</span></div>
   </a>
   
-  <a class="committee-card" href="committee-detail/?id=human-rights-council" aria-label="Learn more about Human Rights Council" data-i18n-attr="aria-label:aria.human-rights-council">
+  <a class="committee-card" href="committee/?id=human-rights-council" aria-label="Learn more about Human Rights Council" data-i18n-attr="aria-label:aria.human-rights-council">
     <div class="committee-poster">
       <!-- <span>HRC</span> -->
       <img src="images/Human Rights Council.webp" alt="" />
@@ -182,7 +182,7 @@
     <div class="committee-copy"><h2 data-i18n="com.human-rights-council.name">Human Rights Council</h2><p data-i18n="com.human-rights-council.desc">Discuss the protection of fundamental freedoms, humanitarian concerns, and practical ways to strengthen human rights.</p><span class="card-more" data-i18n="com.explore">Explore committee →</span></div>
   </a>
   
-  <a class="committee-card" href="committee-detail/?id=who" aria-label="Learn more about World Health Organization" data-i18n-attr="aria-label:aria.who">
+  <a class="committee-card" href="committee/?id=who" aria-label="Learn more about World Health Organization" data-i18n-attr="aria-label:aria.who">
     <div class="committee-poster">
       <!-- <span>WHO</span> -->
       <img src="images/World Health Organization.webp" alt="" />
@@ -190,7 +190,7 @@
     <div class="committee-copy"><h2 data-i18n="com.who.name">World Health Organization</h2><p data-i18n="com.who.desc">Consider global public-health challenges and negotiate cooperative policies that improve health, access, and preparedness.</p><span class="card-more" data-i18n="com.explore">Explore committee →</span></div>
   </a>
   
-  <a class="committee-card" href="committee-detail/?id=press-corps" aria-label="Learn more about International Press Corps" data-i18n-attr="aria-label:aria.press-corps">
+  <a class="committee-card" href="committee/?id=press-corps" aria-label="Learn more about International Press Corps" data-i18n-attr="aria-label:aria.press-corps">
     <div class="committee-poster">
       <!-- <span>IPC</span> -->
       <img src="images/International Press Corps.webp" alt="" />
@@ -279,12 +279,12 @@
        </a>
       </li>
       <li>
-       <a href="about-us/" data-i18n="nav.about">
+       <a href="about/" data-i18n="nav.about">
         About Us
        </a>
       </li>
       <li>
-       <a href="our-team/" data-i18n="nav.team">
+       <a href="team/" data-i18n="nav.team">
         Our Team
        </a>
       </li>

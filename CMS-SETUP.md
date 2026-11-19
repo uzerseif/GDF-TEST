@@ -14,7 +14,16 @@ Open **Supabase Dashboard → SQL Editor → New query**. Run each file below in
 | b | `cms-admin-upgrade.sql` | Already applied on the live project. Running it again is harmless. |
 | c | `seed-gdf.sql` | **Only on a new, empty project.** Never run it twice. The live project already has this content. |
 | d | **`cms-migration-v4.sql`** | **Required for the new Content Studio.** Safe to run more than once. |
-| e | **`cms-migration-v5-media.sql`** | Required for MP4/WebM uploads. Run after V4. Safe to run more than once. |
+| e | **`builder-migration-v1.sql`** | **Required for Builder Studio Phase 1.** Adds isolated project records and registers GDF'27 without changing existing CMS tables. |
+| f | **`builder-migration-v2.sql`** | **Required for Builder Studio Phase 2.** Adds GrapesJS documents, reusable components and revision records. |
+| g | **`builder-migration-v3.sql`** | **Required for Builder Studio Phase 3.** Adds project navigation records for the header and footer managers. |
+| h | **`builder-migration-v4.sql`** | **Required for Builder Studio Phase 4.** Adds project hero/background and responsive-layout records. |
+| i | **`builder-migration-v5.sql`** | **Required for Builder Studio Phase 5.** Adds custom-code and archive records. |
+| j | **`builder-migration-v6.sql`** | **Required for Builder Studio Phase 6.** Adds Builder release snapshots and atomic publish/restore functions. |
+| k | **`builder-migration-v7.sql`** | **Required for GDF'27 Phase 7.** Records protected legacy integrations and verifies the certificate RPC argument locally. |
+| l | **`builder-migration-v8.sql`** | **Required for final Phase 8 QA.** Adds project test-run history. |
+| m | **`builder-migration-v9.sql`** | **Integrity hardening.** Finalizes GDF'27 system status and closes cross-project document, revision, hero and release references. |
+| n | **`cms-migration-v5.sql`** | **Required for the UCMS.** Adds audit logs, notifications, backups, publisher/super_admin roles, page templates and a publish permission check. Additive, safe to run more than once. |
 
 `cms-migration-v4.sql` only adds things. It never drops or deletes tables or rows. It:
 
@@ -35,8 +44,9 @@ values ('PASTE-THE-USER-UID-HERE', 'admin')
 on conflict (user_id) do update set role = excluded.role;
 ```
 
-* `admin`: can edit everything, including **Design settings** and the **countdown date** (both stored in `site_settings`).
-* `editor`: can edit all content, but not Design settings or the countdown date.
+* `super_admin` / `admin`: can edit everything, including **Design settings**, the **countdown date**, users and backups (both stored in `site_settings`).
+* `publisher`: content + media + publishing.
+* `editor`: can edit all content, but cannot publish, change Design settings or manage users. Publishing rights are enforced in the database, not just the interface.
 
 3. Go to **Authentication → Sign In / Providers** and turn off "Allow new users to sign up".
 
@@ -50,12 +60,12 @@ The Supabase URL and publishable key are set once in `cms-config.js`. The certif
 
 ## 4. Using the Content Studio
 
-Open `/admin.html` and sign in. Use the **EN / AR / TR** buttons to switch the dashboard language. This choice is independent of the public site's language.
+Open `/admin/` and sign in. Use the **EN / AR / TR** buttons to switch the dashboard language. This choice is independent of the public site's language.
 
 | Section | What you can change |
 |---|---|
-| Header & navigation | Logo upload, website name visibility, menu order, link and visibility for each item, custom links, menu labels (EN/AR/TR), header background, navigation text, active-link colours, corner radius and maximum width |
-| Homepage → Hero | Emblem, background image, selectable image/video background, uploaded MP4/WebM video, overlay colour and strength, title lines, tagline, button labels and links, countdown title/labels/visibility, countdown date |
+| Header & navigation | Logo upload, website name visibility, menu order, link and visibility for each item, custom links, menu labels (EN/AR/TR), header colours |
+| Homepage → Hero | Emblem, optional background image, video on/off, overlay colour and strength, title lines, tagline, button labels and links, countdown title/labels/visibility, countdown date |
 | Homepage → President's message / President's message page | Photo, signature, photo position, every paragraph, greeting, name, role, button label/link/visibility |
 | Homepage → Venue | Title, school, address, email, phone, Google Maps link, embedded map URL, optional photo, map visibility |
 | Homepage → Sections & order | Drag to reorder Hero / President / Venue / Sponsors, show or hide each, background and text colour and spacing for each |
@@ -67,7 +77,7 @@ Open `/admin.html` and sign in. Use the **EN / AR / TR** buttons to switch the d
 | Design settings | Global colours, fonts, base font size, corner radius, section spacing, button style; live preview; "Reset to original" |
 | Committees / FAQ | Same records as before, now with image upload and drag ordering |
 | All website texts | Every translatable text on the site (195 keys), searchable and filterable by page |
-| Media library | Uploaded images and videos, in-use/unused filter, video previews, copy URL, delete unused files |
+| Media library | All uploaded images, in-use/unused filter, copy URL, delete unused files |
 
 **Live preview** opens the real page next to the editor and shows unsaved edits. Nothing is published until you click **Save changes**.
 **Unsaved-changes warning**: leaving a page or closing the tab asks for confirmation.
@@ -86,3 +96,34 @@ Open `/admin.html` and sign in. Use the **EN / AR / TR** buttons to switch the d
 * **"Only administrators can change this setting"**: your account role is `editor`.
 * **Upload fails**: the file must be JPG, PNG or WebP and under 5 MB, and the bucket policies from the migration must exist.
 * **Change not visible**: hard-refresh the public page (Ctrl/Cmd+Shift+R).
+
+## 7. GitHub Pages deployment
+
+The site uses static directory routes (`<route>/index.html`), so clean URLs do not depend on
+`.htaccess` or server-side rewrites. The original `.html` pages remain available as legacy URLs.
+The clean route pages set a document base URL so local assets and links also work on project sites
+served below `/<repository>/`.
+
+| Legacy URL | Clean URL |
+|---|---|
+| `/admin.html` | `/admin/` |
+| `/about-us.html` | `/about/` |
+| `/applications.html` | `/applications/` |
+| `/committees.html` | `/committees/` |
+| `/committee-detail.html?id=...` | `/committee/?id=...` |
+| `/certificate.html?id=...` | `/certificate/?id=...` |
+| `/faq.html` | `/faq/` |
+| `/message-from-president.html` | `/president/` |
+| `/our-team.html` | `/team/` |
+| `/verify.html` | `/verify/` |
+
+1. Push the complete project to a GitHub repository.
+2. In **Settings → Pages**, choose the branch and `/ (root)` as the publishing source.
+3. Wait for the deployment, then check the Pages URL. For a project site, routes include the
+   repository prefix, for example `https://USERNAME.github.io/REPOSITORY/admin/`.
+4. Replace the existing `https://YOUR-DOMAIN.com` placeholders in page metadata, `sitemap.xml`,
+   and `robots.txt` with the actual public site origin and base path. For a project site, that base
+   path includes `/REPOSITORY`; for a user site or custom domain, use the site's root path.
+
+All local asset and navigation URLs are relative to the project root; do not add a leading `/` when
+adding further local URLs, as that would bypass the project-site repository prefix.
