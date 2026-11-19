@@ -1,23 +1,40 @@
 <!doctype html>
 <html lang="en" dir="ltr">
 <head>
-  <base href="../">
+  <base href="../"/>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>GDF'27 Content Studio</title>
+<title>GDF'27 UCMS</title>
 <link rel="icon" href="images/logo.webp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&family=Alexandria:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="admin.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="stylesheet" href="admin/ucms.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/grapesjs@0.21.13/dist/css/grapes.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/grapesjs@0.21.13/dist/grapes.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/xml/xml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/css/css.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="cms-config.js"></script>
 <script src="translations.js"></script>
 <script src="cms-defaults.js"></script>
 <script src="admin-i18n.js"></script>
+<script src="admin-ucms-i18n.js"></script>
 <script defer src="admin.js"></script>
-<script defer src="admin-pages.js"></script>
+<script defer src="admin/ucms-core.js"></script>
+<script defer src="admin/pages-shared.js"></script>
+<script defer src="admin/pages-dashboard.js"></script>
+<script defer src="admin/pages-website.js"></script>
+<script defer src="admin/pages-content.js"></script>
+<script defer src="admin/pages-builder.js"></script>
+<script defer src="admin/pages-system.js"></script>
+<script defer src="admin/boot.js"></script>
 </head>
 <body>
 <div class="boot" id="bootView"><div class="spinner"></div></div>
