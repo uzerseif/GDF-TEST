@@ -8,8 +8,8 @@
      The constants below are only a fallback for pages that load verify-common.js
      without cms-config.js. Only publishable/anon keys may appear here. */
   var cfg = (window.GDF_VERIFY_SUPABASE || {});
-  var SUPABASE_URL = cfg.url || 'https://tuibokbihauzhwhnbulx.supabase.co';
-  var SUPABASE_ANON_KEY = cfg.key || 'sb_publishable_iXJ7b-TGcV0HqhcbLihKzw_cI10anai';
+  var SUPABASE_URL = 'https://tuibokbihauzhwhnbulx.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_iXJ7b-TGcV0HqhcbLihKzw_cI10anai';
   var LOCALES = { en: 'en-GB', ar: 'ar-u-nu-latn', tr: 'tr-TR' };
   var client = null;
 
