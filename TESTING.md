@@ -1,5 +1,70 @@
 # GDF'27 Content Studio / UCMS — test results
 
+## Full system audit & repair — 2026-11-19 (second pass)
+
+Scope: complete audit + fix pass over the whole project (dashboard lifecycle,
+routing, rendering, Builder Studio races, CMS integration, database checks).
+Every result below was executed in this session; nothing is claimed without
+evidence. Full issue list and fixes: **AUDIT-REPORT.md**.
+
+### Static checks (executed, all passing — `node scripts/ucms-qa.js .`)
+
+| Check | Result |
+|---|---|
+| JavaScript syntax — all 30 project .js files (`node --check`) | PASS |
+| i18n integrity — every `t()` / `data-t` key resolves in EN (incl. 30 new diagnostics/error keys) | PASS |
+| i18n ar/tr parity for `ucms.*` / `err.*` keys | PASS |
+| Dynamic key prefixes (4) have matching keys | PASS |
+| Page-id integrity — 31 pages registered, all `A.go()` targets valid, no duplicates | PASS |
+| Local asset references — 22 HTML files, base-href aware | PASS |
+| Secret scan — publishable keys only | PASS |
+
+`scripts/ucms-qa.js` (referenced by the previous round but missing from the
+archive) was recreated and ships with the project; it is a dev tool, not a
+runtime dependency.
+
+### Browser smoke tests (headless Chromium, local static server :8931)
+
+| Test | Result |
+|---|---|
+| `admin.html` fresh load — login view, 0 console/page errors | PASS |
+| `admin/index.html` fresh load (base-href entry, breadcrumbs element) — 0 errors | PASS |
+| Failed login against live Supabase auth — localised error, stays on login | PASS |
+| Public routes: `/`, `about/`, `applications/`, `committees/`, `faq/`, `team/`, `president/`, `verify/`, `certificate/` — 0 errors each | PASS |
+| Live CMS integration — `data-cms-ready="1"`, sponsor grid from DB, texts applied | PASS |
+| Language switch EN→AR (rtl)→TR + persistence across reload | PASS |
+| Mobile 375 px home — no horizontal overflow, hamburger present | PASS |
+
+### Live Supabase probes (publishable key only, via curl)
+
+| Probe | Result |
+|---|---|
+| anon read `site_texts` / `committees` | PASS (200, seeded rows) |
+| anon read `admin_users` | PASS (200 + `[]` — own-row RLS hides staff) |
+| anon write `site_texts` | PASS (401, RLS violation — writes blocked) |
+| certificate-project `verify_certificate()` RPC | PASS (200) |
+| migration-state probe | v4 tables present; **v5 + builder v1…v9 NOT applied on the live project** (PGRST205) — run them per AUDIT-REPORT.md §C; the new Database diagnostics panel now surfaces this as "Migration Required" |
+
+### New in this round
+
+- **Database diagnostics** on the Website Health page: connection, 30 required
+  tables, critical columns, 6 RPC functions (side-effect-free probes), storage
+  bucket, RLS behaviour, per-migration status — statuses Healthy / Missing /
+  Permission Error / Migration Required / Connection Failed (EN/AR/TR).
+- Centralised error classification (`A.errInfo`) with localised categories.
+- Page lifecycle (`A.addCleanup`) + render/save/load sequence tokens; browser
+  back/forward now navigates the dashboard (popstate).
+- Visual editor: single GrapesJS instance (destroy on re-init and navigation),
+  single-flight saves with monotonic ordering, stale page loads discarded.
+
+### Still blocked (needs credentials / external access)
+
+- Authenticated walkthrough of all dashboard pages, editor save/publish,
+  revision restore, backups — requires an admin account (and the pending
+  migrations applied first).
+- Firefox / Safari and physical devices.
+
+
 ## UCMS transformation — 2026-11-19
 
 Scope of this round: architecture refactor, security hardening, UCMS surfaces

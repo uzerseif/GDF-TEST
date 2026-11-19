@@ -95,10 +95,23 @@
     setTimeout(function () { el.remove(); }, type === "error" ? 7000 : 3500);
   };
   A.fail = function (err, fallback) {
-    var m = (err && (err.message || err.error_description || err.error)) || fallback || t("msg.error");
+    var info = A.errInfo(err);
+    var m = info.message || fallback || t("msg.error");
     if (/row-level security|permission denied|violates row-level/i.test(m)) m = t("msg.adminOnly") + " (" + m + ")";
-    A.toast(t("msg.error") + ": " + m, "error");
-    console.warn("CMS:", m);
+    A.toast(t("msg.error") + " [" + t(info.categoryKey) + "]: " + m, "error");
+    console.warn("CMS [" + info.category + "]", err || m);
+  };
+  /* Centralised error classification: category key + user-safe message.
+     Never leaks internal details beyond what the backend already sent. */
+  A.errInfo = function (err) {
+    var m = String((err && (err.message || err.error_description || err.error)) || err || "");
+    var category = "runtime", categoryKey = "err.runtime";
+    if (/fetch|Failed to fetch|NetworkError|network/i.test(m)) { category = "network"; categoryKey = "err.network"; }
+    else if (/row-level security|permission denied|JWT|unauthorized|401|403/i.test(m)) { category = "auth"; categoryKey = "err.auth"; }
+    else if (/schema cache|does not exist|relation|column|function .* is not|PGRST/i.test(m)) { category = "database"; categoryKey = "err.database"; }
+    else if (err && err instanceof TypeError) { category = "runtime"; categoryKey = "err.runtime"; }
+    else if (/JSON|validate|required|invalid/i.test(m)) { category = "validation"; categoryKey = "err.validation"; }
+    return { category: category, categoryKey: categoryKey, message: m, raw: err };
   };
   A.modal = function (opts) {
     var root = $("#modalRoot"), last = document.activeElement;
@@ -145,6 +158,18 @@
     var b = $("#dirtyBadge"); if (b) b.hidden = !A.dirty;
   };
   window.addEventListener("beforeunload", function (e) { if (A.dirty) { e.preventDefault(); e.returnValue = ""; } });
+
+  /* ---------------- page lifecycle ----------------
+     Modules register teardown work (timers, listeners on persistent nodes,
+     editor instances, subscriptions) with A.addCleanup; A.go runs everything
+     before the next page renders. Pages follow: init -> load -> render, and
+     destroy via this registry — nothing is left behind between navigations. */
+  A._cleanup = [];
+  A.addCleanup = function (fn) { if (typeof fn === "function") A._cleanup.push(fn); };
+  A.runCleanup = function () {
+    var fns = A._cleanup; A._cleanup = [];
+    fns.forEach(function (fn) { try { fn(); } catch (e) { console.warn("cleanup:", e && e.message); } });
+  };
 
   /* ---------------- form fields ---------------- */
   function wrap(label, input, help) {
@@ -285,7 +310,7 @@
         };
         xhr.onerror = function () { reject(new Error("Network error")); };
         xhr.send(file);
-      });
+      }).catch(function (e) { reject(e); });
     });
   };
   A.fImage = function (label, url, o) {
@@ -446,18 +471,30 @@
   A.allTextKeys = function () { return Object.keys(DEF); };
   A.textPages = function (key) { return (DEF[key] && DEF[key].pages) || []; };
   A.data = { texts: {}, sections: {}, settings: {} };
+  A.coreErrors = [];
   A.loadCore = function () {
+    A.coreErrors = [];
     return Promise.all([
       db.from("site_texts").select("key,value"),
       db.from("page_sections").select("*"),
       db.from("site_settings").select("key,value")
     ]).then(function (r) {
-      A.migrationOk = !r[0].error && !r[1].error;
-      $("#banner").hidden = A.migrationOk;
-      if (!A.migrationOk) $("#banner").textContent = t("msg.migration");
+      var errs = r.filter(function (x) { return x.error; });
+      A.coreErrors = errs.map(function (x) { return x.error; });
+      var missing = errs.some(function (x) { return /does not exist|schema cache|relation/i.test(x.error.message || ""); });
+      A.migrationOk = !missing;
+      var banner = $("#banner");
+      if (banner) {
+        banner.hidden = A.migrationOk;
+        banner.textContent = A.migrationOk
+          ? (errs.length ? t("msg.corePartial") : "")
+          : t("msg.migration");
+        if (A.migrationOk && errs.length) errs.forEach(function (x) { console.warn("CMS core:", x.error.message); });
+      }
       A.data.texts = {}; (r[0].data || []).forEach(function (x) { A.data.texts[x.key] = x.value || {}; });
       A.data.sections = {}; (r[1].data || []).forEach(function (x) { A.data.sections[x.page + ":" + x.section_key] = x; });
       A.data.settings = {}; (r[2].data || []).forEach(function (x) { A.data.settings[x.key] = x.value; });
+      return { ok: !errs.length, errors: A.coreErrors };
     });
   };
   /* Translated text field bound to a site_texts key (pre-filled with the current website text). */
@@ -559,7 +596,9 @@
   A.pageHead = function (title, desc, actions) { return h("div", { class: "page-head" }, h("div", null, h("p", { class: "muted", style: { margin: 0 } }, desc || "")), actions || null);
   };
   /* Unified save bar with explicit state feedback:
-     idle -> saving -> saved (time) / failed; offline overrides the label. */
+     idle -> saving -> saved (time) / failed; offline overrides the label.
+     The status handler is registered per page and removed again by the page
+     lifecycle (A.addCleanup) instead of accumulating forever. */
   A.saveBar = function (onSave, note) {
     var statusEl = h("span", { class: "save-status", role: "status" });
     function setState(state) {
@@ -570,8 +609,12 @@
         : state === "offline" ? t("ucms.save.offline")
         : A.dirty ? t("ucms.save.unsaved") : "";
     }
-    A._saveStatusHandlers = A._saveStatusHandlers || [];
-    A._saveStatusHandlers.push(setState);
+    var handlers = A._saveStatusHandlers = A._saveStatusHandlers || [];
+    handlers.push(setState);
+    A.addCleanup(function () {
+      var i = handlers.indexOf(setState);
+      if (i >= 0) handlers.splice(i, 1);
+    });
     var btn = h("button", { type: "button", class: "btn btn-gold", on: { click: function () {
       A.busy(btn, true); setState("saving");
       Promise.resolve().then(onSave).then(function (ok) {
@@ -665,8 +708,10 @@
     if (!A.pages[id]) id = "dashboard";
     if (!force && A.dirty && !window.confirm(t("msg.unsaved"))) return;
     A.setDirty(false);
+    A.runCleanup();                       /* destroy timers/listeners/editors of the previous page */
     A.current = id;
-    try { history.replaceState(null, "", location.pathname + "#" + id); } catch (e) { /* ignore */ }
+    var seq = A._renderSeq = (A._renderSeq || 0) + 1;  /* only the newest render may paint */
+    try { history.pushState(null, "", location.pathname + "#" + id); } catch (e) { /* ignore */ }
     $$(".nav-item").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-section") === id); });
     $("#appView").classList.remove("nav-open");
     var p = A.pages[id], view = $("#view");
@@ -681,9 +726,24 @@
     document.title = t(p.title) + " · " + t("app.title");
     view.innerHTML = '<div class="empty"><span class="spinner sm"></span> ' + A.esc(t("msg.loading")) + "</div>";
     A.preview.available(p.preview || null);
-    Promise.resolve().then(function () { view.innerHTML = ""; return p.render(view); }).catch(function (e) { A.fail(e); });
+    Promise.resolve().then(function () {
+      var frag = document.createDocumentFragment();
+      return Promise.resolve(p.render(frag)).then(function () {
+        if (seq !== A._renderSeq) return;   /* a newer navigation superseded this render */
+        view.innerHTML = "";
+        view.appendChild(frag);
+      });
+    }).catch(function (e) { if (seq === A._renderSeq) A.fail(e); });
     view.style.animation = "none"; void view.offsetWidth; view.style.animation = "";
   };
+  /* Browser back/forward: the hash moves, the router follows. */
+  window.addEventListener("popstate", function () {
+    var id = (location.hash || "").slice(1) || "dashboard";
+    if (A.user && A.pages[id] && id !== A.current) {
+      if (A.dirty && !window.confirm(t("msg.unsaved"))) { history.replaceState(null, "", location.pathname + "#" + A.current); return; }
+      A.go(id, true);
+    }
+  });
   document.addEventListener("input", function (e) {
     if (!A.user || !e.target.closest || !e.target.closest("#view, .modal") || e.target.closest("[data-nodirty]")) return;
     if (e.target.closest("#view") && !e.target.closest(".toolbar")) A.setDirty(true);
@@ -702,7 +762,15 @@
   function loginError(msg) { var e = $("#loginError"); e.textContent = msg; e.hidden = !msg; }
   function enter(session) {
     return db.from("admin_users").select("role").eq("user_id", session.user.id).maybeSingle().then(function (r) {
-      if (r.error || !r.data) {
+      if (r.error) {
+        /* A temporary (network/schema) failure must not log the user out. */
+        if (!/row-level|permission denied|401|403/i.test(r.error.message || "")) {
+          loginError(t("login.failed") + ": " + r.error.message);
+          show("login");
+          return null;
+        }
+      }
+      if (!r.data) {
         loginError(t("login.denied") + (r.error ? " (" + r.error.message + ")" : ""));
         return db.auth.signOut().then(function () { show("login"); });
       }
@@ -712,6 +780,11 @@
       show("app");
       if (A.ucmsBootUI) A.ucmsBootUI();
       return A.loadCore().then(function () {
+        buildNav();
+        A.go((location.hash || "").slice(1) || "dashboard", true);
+      }).catch(function (e) {
+        /* Core data could not load — keep the shell usable, show why. */
+        A.fail(e);
         buildNav();
         A.go((location.hash || "").slice(1) || "dashboard", true);
       });
@@ -754,6 +827,10 @@
       var s = r.data && r.data.session;
       if (s) return enter(s);
       show("login");
-    }).catch(function () { show("login"); });
+    }).catch(function (e) {
+      /* Session restore failed (offline / config problem): login view with a hint. */
+      show("login");
+      loginError(t("login.failed") + ": " + ((e && e.message) || "network error"));
+    });
   };
 })();
