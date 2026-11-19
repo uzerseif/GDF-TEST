@@ -36,7 +36,9 @@ create index if not exists builder_project_settings_project_idx
 create table if not exists public.builder_project_pages (
   id         uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.builder_projects(id) on delete cascade,
-  slug       text not null check (slug ~ '^[a-z0-9/_-]{1,120}$'),
+  slug       text not null,
+  constraint builder_project_pages_slug_check
+    check (slug = './' or slug ~ '^[a-z0-9/_-]{1,120}$'),
   title      jsonb not null check (jsonb_typeof(title) = 'object'),
   page_type  text not null default 'legacy'
               check (page_type in ('legacy', 'visual', 'custom')),
@@ -47,6 +49,16 @@ create table if not exists public.builder_project_pages (
   updated_at timestamptz not null default now(),
   unique (project_id, slug)
 );
+
+-- Keep the page slug rule correct on both fresh and partially-created databases.
+-- The legacy home page uses './', which must be explicitly allowed.
+alter table public.builder_project_pages
+  drop constraint if exists builder_project_pages_slug_check;
+
+alter table public.builder_project_pages
+  add constraint builder_project_pages_slug_check
+  check (slug = './' or slug ~ '^[a-z0-9/_-]{1,120}$');
+
 create index if not exists builder_project_pages_project_idx
   on public.builder_project_pages(project_id, sort_order);
 
@@ -160,7 +172,11 @@ begin
     raise exception 'Only administrators can mark a project as system';
   end if;
 
-  return coalesce(new, old);
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
 end;
 $$;
 
@@ -331,28 +347,30 @@ on conflict (slug) do update set
   is_system = true;
 
 
+
 -- Seed the first project and preserve GDF'27 as the existing legacy project.
-do $$
-declare project uuid;
-begin
-  select id into project
-  from public.builder_projects
-  where slug = 'gdf27';
+DO $$
+DECLARE
+  project uuid;
+BEGIN
+  SELECT id INTO project
+  FROM public.builder_projects
+  WHERE slug = 'gdf27';
 
-  if project is null then
-    return;
-  end;
+  IF project IS NULL THEN
+    RETURN;
+  END IF;
 
-  insert into public.builder_project_settings (project_id, key, value)
-  values
+  INSERT INTO public.builder_project_settings (project_id, key, value)
+  VALUES
     (project, 'cms.project', '"gdf27"'::jsonb),
     (project, 'cms.legacy', 'true'::jsonb),
     (project, 'preview.origin', '"./"'::jsonb)
-  on conflict (project_id, key) do nothing;
+  ON CONFLICT (project_id, key) DO NOTHING;
 
-  insert into public.builder_project_pages
+  INSERT INTO public.builder_project_pages
     (project_id, slug, title, page_type, is_home, is_published, sort_order)
-  values
+  VALUES
     (project, './', '{"en":"Home","ar":"الرئيسية","tr":"Ana Sayfa"}'::jsonb, 'legacy', true, true, 0),
     (project, 'about/', '{"en":"About Us","ar":"من نحن","tr":"Hakkımızda"}'::jsonb, 'legacy', false, true, 1),
     (project, 'applications/', '{"en":"Applications","ar":"التقديم","tr":"Başvurular"}'::jsonb, 'legacy', false, true, 2),
@@ -361,5 +379,6 @@ begin
     (project, 'team/', '{"en":"Our Team","ar":"فريقنا","tr":"Ekibimiz"}'::jsonb, 'legacy', false, true, 5),
     (project, 'president/', '{"en":"President''s Message","ar":"رسالة الرئيس","tr":"Başkanın Mesajı"}'::jsonb, 'legacy', false, true, 6),
     (project, 'verify/', '{"en":"Verify Certificate","ar":"التحقق من الشهادة","tr":"Sertifika Doğrulama"}'::jsonb, 'legacy', false, true, 7)
-  on conflict (project_id, slug) do nothing;
-end $$;
+  ON CONFLICT (project_id, slug) DO NOTHING;
+
+END $$;
